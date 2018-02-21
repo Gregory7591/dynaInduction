@@ -1,0 +1,158 @@
+﻿/// <reference path="OneXrm.ts" />
+
+namespace OneXrm {
+  export module Entities {
+    export class {Entity:LogicalName} extends Entity {
+      public readonly entityType = {Entity:LogicalName};
+
+      public static readonly metadata: Metadata.EntityMetadata = {
+        isCustomEntity: {Entity:IsCustomEntity},
+        logicalCollectionName: "{Entity:LogicalCollectionName}",
+        logicalName: "{Entity:LogicalName}",
+        objectTypeCode: {Entity:ObjectTypeCode},
+        primaryIdAttribute: "{Entity:PrimaryIdAttribute}",
+        schemaName: "{Entity:SchemaName}"
+      };
+
+      /** Initializes a new instance of the OneXrm.Entities.{Entity:LogicalName} class. */
+      constructor() {
+        super({Entity:LogicalName}.metadata.logicalName);
+      }
+
+      get {Entity:PrimaryIdAttribute}() {
+        return this.id;
+      }
+      set {Entity:PrimaryIdAttribute}(value: string) {
+        this.id = value;
+      }
+
+{Entity:Attributes}
+
+      /** Retrieves the {Entity:LogicalName} with the supplied id. */
+      /** @param id The id of the {Entity:LogicalName} to retrieve. */
+      /** @param columns The columns to retrieve. Supply null to retrieve all columns. */
+      /** @param successCallback The function to be called on a successful response. */
+      /** @param errorCallback The function to be called on an unsuccessful response. */
+      static retrieve(id: string, columns: Metadata.AttributeMetadata[] = null, successCallback?: ({Entity:LogicalName}: {Entity:LogicalName}) => any, errorCallback?: (error: Error) => any): JQueryXHR {
+        return Messages.retrieve(this, id, columns, successCallback, errorCallback);
+      }
+
+      /** Retrieves the {Entity:LogicalName} according to the supplied Web API query. */
+      /** @param webAPIQuery The Web API query. */
+      /** @param successCallback The function to be called on a successful response. */
+      /** @param errorCallback The function to be called on an unsuccessful response. */
+      static retrieveWebAPI(webAPIQuery: string, successCallback?: ({Entity:LogicalName}: {Entity:LogicalName}) => any, errorCallback?: (error: Error) => any): JQueryXHR {
+        return Messages.retrieveWebAPI(this, webAPIQuery, successCallback, errorCallback);
+      }
+
+      /** Retrieves the list of {Entity:LogicalName} records according to the supplied query. */
+      /** @param criteria The criteria. */
+      /** @param orders The order expressions. */
+      /** @param columns The columns to retrieve. Supply null to retrieve all columns. */
+      /** @param top The number of records to retrieve. Supply null to retrieve all records. */
+      /** @param linkedEntities The linked entities. */
+      /** @param successCallback The function to be called on a successful response. */
+      /** @param errorCallback The function to be called on an unsuccessful response. */
+      static retrieveMultiple(criteria: Query.FilterExpression = new Query.FilterExpression(), orders: Query.OrderExpression[] = [], columns: Metadata.AttributeMetadata[] = null, top: Number = null, linkedEntities: Query.LinkEntity[] = [], successCallback?: (entities: {Entity:LogicalName}[]) => any, errorCallback?: (error: Error) => any): JQueryXHR {
+        return Messages.retrieveMultiple(this, criteria, orders, columns, top, linkedEntities, successCallback, errorCallback);
+      }
+
+      /** Retrieves the list of {Entity:LogicalName} records according to the supplied query expression. */
+      /** @param query The query expression. */
+      /** @param successCallback The function to be called on a successful response. */
+      /** @param errorCallback The function to be called on an unsuccessful response. */
+      static retrieveMultipleQuery(query: Query.QueryExpression, successCallback?: (entities: {Entity:LogicalName}[]) => any, errorCallback?: (error: Error) => any): JQueryXHR {
+        return Messages.retrieveMultipleQuery(this, query, successCallback, errorCallback);
+      }
+
+      /** Retrieves the list of {Entity:LogicalName} records according to the supplied query expression. */
+      /** @param webAPIQuery The Web API query. */
+      /** @param successCallback The function to be called on a successful response. */
+      /** @param errorCallback The function to be called on an unsuccessful response. */
+      static retrieveMultipleWebAPI(webAPIQuery: string, successCallback?: (entities: {Entity:LogicalName}[]) => any, errorCallback?: (error: Error) => any): JQueryXHR {
+        return Messages.retrieveMultipleWebAPI(this, webAPIQuery, successCallback, errorCallback);
+      }
+
+      /** Starts a new LINQ query. */
+      static get linq(): {Entity:LogicalName}.LINQ {
+        return new {Entity:LogicalName}.LINQ();
+      }
+    }
+
+    export module {Entity:LogicalName} {
+      export class Attributes {
+{Entity:MetadataAttributes}
+      }
+
+      export class LINQ {
+        private query: Query.QueryExpression;
+
+        /** Initializes a new instance of the Entities.{Entity:LogicalName}.LINQ class. */
+        public constructor() {
+          this.query = new Query.QueryExpression({Entity:LogicalName});
+        }
+
+        /** Appends a condition expression to the query's criteria conditions. */
+        /** @param attribute The attribute. */
+        /** @param conditionOperator The condition operator. */
+        /** @param values The value(s). */
+        public addCondition(attribute: Metadata.AttributeMetadata, conditionOperator: Query.ConditionOperator, values: Object | Object[] = []): {Entity:LogicalName}.LINQ {
+          this.query.criteria.conditions.push(new Query.ConditionExpression(attribute, conditionOperator, values));
+          return this;
+        }
+
+        /** Appends an order expression to the query's orders. */
+        /** @param attribute The attribute. */
+        /** @param orderType The order type. Defaults to OneXrm.Query.OrderType.Ascending. */
+        public addOrder(attribute: Metadata.AttributeMetadata, orderType: Query.OrderType = Query.OrderType.Ascending): {Entity:LogicalName}.LINQ {
+          this.query.orders.push(new Query.OrderExpression(attribute, orderType));
+          return this;
+        }
+
+        /** Applies ordering to the LINQ retrieval. */
+        /** @param linkedEntities The linked entities. */
+        public join(linkedEntities: Query.LinkEntity[] = []): {Entity:LogicalName}.LINQ {
+          this.query.linkedEntities = linkedEntities;
+          return this;
+        }
+
+        /** Applies ordering to the LINQ retrieval. */
+        /** @param orders The order expressions. */
+        public orderBy(orders: Query.OrderExpression[] = []): {Entity:LogicalName}.LINQ {
+          this.query.orders = orders;
+          return this;
+        }
+
+        /** Applies a top clause to the LINQ retrieval. */
+        /** @param top The count. */
+        public top(top: number): {Entity:LogicalName}.LINQ {
+          this.query.top = top;
+          return this;
+        }
+
+        /** Selects the supplied columns and executes the LINQ query. */
+        /** @param successCallback The function to be called on a successful response. */
+        /** @param errorCallback The function to be called on an unsuccessful response. */
+        public select(columns: Metadata.AttributeMetadata[] = null, successCallback: (entities: {Entity:LogicalName}[]) => any, errorCallback: (error: Error) => any): JQueryXHR {
+          this.query.columnSet = new Query.ColumnSet(columns);
+          return Messages.retrieveMultipleQuery({Entity:LogicalName}, this.query, successCallback, errorCallback);
+        }
+
+        /** Applies criteria to the LINQ retrieval. */
+        /** @param filterOperator The filter operator. */
+        /** @param filters The list of filters. */
+        /** @param conditions The list of conditions. */
+        public where(filterOperator: Query.LogicalOperator = Query.LogicalOperator.And, filters: Query.FilterExpression[] = [], conditions: Query.ConditionExpression[] = []): {Entity:LogicalName}.LINQ {
+          this.query.criteria.filterOperator = filterOperator;
+          this.query.criteria.filters = filters;
+          this.query.criteria.conditions = conditions;
+          return this;
+        }
+      }
+    }
+  }
+
+  export module OptionSets {
+{Entity:OptionSets}
+  }
+}

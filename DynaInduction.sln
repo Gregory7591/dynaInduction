@@ -1,0 +1,70 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27130.2010
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{88A30576-7583-4F75-8136-5EFD2C14ADFF}") = "CrmPackage", "CrmPackage\CrmPackage.csproj", "{16EA6649-606B-4E2C-9948-6AC8204C76A7}"
+	ProjectSection(ProjectDependencies) = postProject
+		{AFFB5EC7-9F67-4D1D-8241-75216562412C} = {AFFB5EC7-9F67-4D1D-8241-75216562412C}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plugins", "Plugins\Plugins.csproj", "{AFFB5EC7-9F67-4D1D-8241-75216562412C}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Singular.Xrm", "Singular.Xrm", "{BAC4A118-CF16-4F77-B7C4-330906923B24}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrmPackage.Singular.PostBuild", "Singular.Xrm\Singular.Xrm\CrmPackage.Singular.PostBuild\CrmPackage.Singular.PostBuild.csproj", "{175D84FF-DFBF-4628-95D3-F8D4BC356BB1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OneXrm.Generator", "Singular.Xrm\Singular.Xrm\OneXrm.Generator\OneXrm.Generator.csproj", "{D6716079-CC08-4ED4-91C2-3F859CB6044C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Singular.Xrm", "Singular.Xrm\Singular.Xrm\Singular.Xrm\Singular.Xrm.csproj", "{F1972448-5E90-485E-9990-6254B7D7A8E7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CrmPackage.Singular", "CrmPackage.Singular\CrmPackage.Singular.csproj", "{7C65829C-088C-46F7-BA27-7B220C04A33E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{16EA6649-606B-4E2C-9948-6AC8204C76A7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{16EA6649-606B-4E2C-9948-6AC8204C76A7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{16EA6649-606B-4E2C-9948-6AC8204C76A7}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
+		{16EA6649-606B-4E2C-9948-6AC8204C76A7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{16EA6649-606B-4E2C-9948-6AC8204C76A7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{16EA6649-606B-4E2C-9948-6AC8204C76A7}.Release|Any CPU.Deploy.0 = Release|Any CPU
+		{AFFB5EC7-9F67-4D1D-8241-75216562412C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AFFB5EC7-9F67-4D1D-8241-75216562412C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AFFB5EC7-9F67-4D1D-8241-75216562412C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AFFB5EC7-9F67-4D1D-8241-75216562412C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{175D84FF-DFBF-4628-95D3-F8D4BC356BB1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{175D84FF-DFBF-4628-95D3-F8D4BC356BB1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{175D84FF-DFBF-4628-95D3-F8D4BC356BB1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{175D84FF-DFBF-4628-95D3-F8D4BC356BB1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D6716079-CC08-4ED4-91C2-3F859CB6044C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D6716079-CC08-4ED4-91C2-3F859CB6044C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D6716079-CC08-4ED4-91C2-3F859CB6044C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D6716079-CC08-4ED4-91C2-3F859CB6044C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F1972448-5E90-485E-9990-6254B7D7A8E7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F1972448-5E90-485E-9990-6254B7D7A8E7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F1972448-5E90-485E-9990-6254B7D7A8E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F1972448-5E90-485E-9990-6254B7D7A8E7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7C65829C-088C-46F7-BA27-7B220C04A33E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C65829C-088C-46F7-BA27-7B220C04A33E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C65829C-088C-46F7-BA27-7B220C04A33E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C65829C-088C-46F7-BA27-7B220C04A33E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{175D84FF-DFBF-4628-95D3-F8D4BC356BB1} = {BAC4A118-CF16-4F77-B7C4-330906923B24}
+		{D6716079-CC08-4ED4-91C2-3F859CB6044C} = {BAC4A118-CF16-4F77-B7C4-330906923B24}
+		{F1972448-5E90-485E-9990-6254B7D7A8E7} = {BAC4A118-CF16-4F77-B7C4-330906923B24}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {23CFD00B-58EB-45F9-8D35-19CFF2A7C2A5}
+	EndGlobalSection
+	GlobalSection(CRMSolutionProperties) = preSolution
+		SolutionIsBoundToCRM = True
+	EndGlobalSection
+EndGlobal

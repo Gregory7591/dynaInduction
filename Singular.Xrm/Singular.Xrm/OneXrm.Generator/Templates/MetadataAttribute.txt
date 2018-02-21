@@ -1,0 +1,5 @@
+﻿          public static readonly {Attribute:LogicalNameProperty}: Metadata.AttributeMetadata = {
+            attributeType: Metadata.AttributeTypeCode.{Attribute:AttributeType},
+            logicalName: "{Attribute:LogicalNameValue}",
+            schemaName: "{Attribute:SchemaName}"{Attribute:Targets}
+          };

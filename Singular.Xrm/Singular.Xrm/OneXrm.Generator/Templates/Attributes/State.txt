@@ -1,0 +1,4 @@
+﻿      public {Attribute:LogicalNameValue}: {
+        value: OptionSets.{Entity:LogicalName}_{Attribute:LogicalNameValue},
+        name?: string
+      };
