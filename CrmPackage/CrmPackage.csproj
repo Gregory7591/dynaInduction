@@ -46,19 +46,19 @@
     <Folder Include="WebResources" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Plugins\Plugins.csproj">
-      <Name>Plugins</Name>
-      <Project>{affb5ec7-9f67-4d1d-8241-75216562412c}</Project>
-      <Private>True</Private>
-      <SilverlightApplication>False</SilverlightApplication>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <CRMWebResource Include="WebResources\Script\Forms\onChangeCalcAge.js">
       <DisplayName>onChangeCalcAge</DisplayName>
       <UniqueName>di_onChangeCalcAge</UniqueName>
       <WebResourceType>Script</WebResourceType>
     </CRMWebResource>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Plugins\Plugins.csproj">
+      <Name>Plugins</Name>
+      <Project>{5c565dd7-7d91-40e7-9861-f95105d896d5}</Project>
+      <Private>True</Private>
+      <SilverlightApplication>False</SilverlightApplication>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!--<Import Project="$(MSBuildExtensionsPath32)\Microsoft\CRM\Microsoft.CrmDeveloperTools.12.targets" />-->

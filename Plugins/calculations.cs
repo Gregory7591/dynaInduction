@@ -8,6 +8,7 @@ namespace CrmCalculations
   {
     public int CalculateAge(Contact contact, Contact preContact)
     {
+      
       DateTime dateCurrent = DateTime.Now.Date;
       DateTime? dateofBirth = contact.di_dateofBirth ?? preContact.di_dateofBirth;
       DateTime realDateofBirth = (DateTime)dateofBirth;
