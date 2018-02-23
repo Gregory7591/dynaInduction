@@ -15751,6 +15751,7 @@ var DynaInduction;
                     //FinalDynamicsChallenge.Forms.contact.Contact.attachEvents(context);
                     //FinalDynamicsChallenge.Forms.contact.Contact.businessRules(context, true);
                     DynaInduction.Forms.contact.Contact.prefMethodCom(context);
+                    DynaInduction.Forms.contact.Contact.lockFullName(context);
                 };
                 Contact.onChange = function (context) {
                     DynaInduction.Forms.contact.Contact.prefMethodCom(context);
@@ -15758,10 +15759,18 @@ var DynaInduction;
                         DynaInduction.Forms.contact.Contact.workAge(context);
                     }
                 };
-                Contact.onSave = function (context) { };
+                Contact.onSave = function (context) {
+                    DynaInduction.Forms.contact.Contact.lockFullName(context);
+                };
                 Contact.attachEvents = function (context) { };
                 Contact.businessRules = function (context, onLoad) {
                     if (onLoad === void 0) { onLoad = false; }
+                };
+                Contact.lockFullName = function (context) {
+                    if (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.fullname.logicalName).getValue() != null) {
+                        Xrm.Page.getControl(OneXrm.Entities.contact.Attributes.fullname.logicalName).setDisabled(true);
+                        //Xrm.Page.ui.getFormType();
+                    }
                 };
                 Contact.workAge = function (context) {
                     var currentDate = new Date();
@@ -15787,6 +15796,10 @@ var DynaInduction;
                     if (intialInvestment != 0 && investmentPeriod != 0 && interestRate != 0) {
                         Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_esitimatedreturnfinal.logicalName).setValue(intialInvestment * (1 + (interestRate * investmentPeriod)));
                     }
+                };
+                Contact.addSixMonthsInvestmentPeriod = function (context) {
+                    var investmentPeriod = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue() + 6;
+                    Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).setValue(investmentPeriod);
                 };
                 return Contact;
             }());

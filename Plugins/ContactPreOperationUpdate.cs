@@ -19,10 +19,11 @@ namespace DynaInduction.Plugins
       }
 
       IPluginExecutionContext context = localContext.PluginExecutionContext;
+      ITracingService trace = localContext.TracingService;
 
       if (context.InputParameters.Contains("Target") && context.InputParameters["Target"] is Entity)
       {
-        Entity entity = (Entity)context.PreEntityImages["Target"];
+        Entity entity = (Entity)context.InputParameters["Target"];
         Contact contact = entity.ToEntity<Contact>();
         Entity preEntity = (Entity)context.PreEntityImages["contactPreImage"];
         Contact preContact = preEntity.ToEntity<Contact>();
@@ -36,7 +37,7 @@ namespace DynaInduction.Plugins
         }
         catch (Exception ex)
         {
-          throw new InvalidPluginExecutionException("An error occured in the plugin:", ex);
+          throw new InvalidPluginExecutionException("An error occured in the plugin:Pre Update", ex);
         }
       }
 

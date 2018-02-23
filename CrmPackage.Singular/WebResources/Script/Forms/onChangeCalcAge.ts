@@ -8,28 +8,35 @@ module DynaInduction {
         public static onLoad(context: Xrm.Page.EventContext): void {
           //FinalDynamicsChallenge.Forms.contact.Contact.attachEvents(context);
           //FinalDynamicsChallenge.Forms.contact.Contact.businessRules(context, true);
-         
           DynaInduction.Forms.contact.Contact.prefMethodCom(context);
+
+          DynaInduction.Forms.contact.Contact.lockFullName(context); 
+
         }
 
         public static onChange(context: Xrm.Page.EventContext): void {
           DynaInduction.Forms.contact.Contact.prefMethodCom(context);
           
           if ((<Xrm.Page.StringAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.birthdate.logicalName)).getValue() != null) {
-            
-            DynaInduction.Forms.contact.Contact.workAge(context);
-          }
 
-        
+            DynaInduction.Forms.contact.Contact.workAge(context);
+          }  
         }
 
-        public static onSave(context: Xrm.Page.EventContext): void { }
+        public static onSave(context: Xrm.Page.EventContext): void {
+          DynaInduction.Forms.contact.Contact.lockFullName(context);}
 
         private static attachEvents(context: Xrm.Page.EventContext): void { }
 
         private static businessRules(context: Xrm.Page.EventContext, onLoad: boolean = false): void { }
 
-
+        private static lockFullName(context: Xrm.Page.EventContext): void {
+          if ((<Xrm.Page.StringAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.fullname.logicalName)).getValue() != null) {
+            Xrm.Page.getControl(OneXrm.Entities.contact.Attributes.fullname.logicalName).setDisabled(true);
+            //Xrm.Page.ui.getFormType();
+          }
+        }
+      
         private static workAge(context: Xrm.Page.EventContext): void {
 
           var currentDate = new Date();
@@ -61,6 +68,11 @@ module DynaInduction {
           if (intialInvestment != 0 && investmentPeriod != 0 && interestRate != 0) {
             (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_esitimatedreturnfinal.logicalName)).setValue(intialInvestment * (1 + (interestRate * investmentPeriod)));
           }
+        }
+        private static addSixMonthsInvestmentPeriod(context: Xrm.Page.EventContext) {
+          var investmentPeriod = (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName)).getValue() + 6;
+          (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName)).setValue(investmentPeriod);
+          
         }
       }
     }

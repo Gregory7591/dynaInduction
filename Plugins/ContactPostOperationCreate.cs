@@ -45,7 +45,7 @@ namespace DynaInduction.Plugins
           }
           catch (FaultException ex)
           {
-            throw new InvalidPluginExecutionException("An error occurred in the plug-in.", ex);
+            throw new InvalidPluginExecutionException("An error occurred in the plug-in: Post Create", ex);
           }
         }
       }
