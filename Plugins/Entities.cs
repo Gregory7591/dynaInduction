@@ -5,10 +5,14 @@
 //     Changes to this file may cause incorrect behavior and will be lost if
 //     the code is regenerated.
 // </auto-generated>
+// Created via this command line: "C:\Users\Administrator\AppData\Roaming\MscrmTools\XrmToolBox\Plugins\CrmSvcUtil Ref\crmsvcutil.exe" /url:"https://dynainduction.api.crm4.dynamics.com/XRMServices/2011/Organization.svc" /namespace:"CrmEarlyBound" /out:"C:\Users\Administrator\AppData\Roaming\MscrmTools\XrmToolBox\Settings\CrmSvcUtil Ref\Entities.cs" /servicecontextname:"CrmServiceContext" /codecustomization:"DLaB.CrmSvcUtilExtensions.Entity.CustomizeCodeDomService,DLaB.CrmSvcUtilExtensions" /codegenerationservice:"DLaB.CrmSvcUtilExtensions.Entity.CustomCodeGenerationService,DLaB.CrmSvcUtilExtensions" /codewriterfilter:"DLaB.CrmSvcUtilExtensions.Entity.CodeWriterFilterService,DLaB.CrmSvcUtilExtensions" /namingservice:"DLaB.CrmSvcUtilExtensions.NamingService,DLaB.CrmSvcUtilExtensions" /metadataproviderservice:"DLaB.CrmSvcUtilExtensions.Entity.MetadataProviderService,DLaB.CrmSvcUtilExtensions" /username:"admin@dynainduction.onmicrosoft.com" /password:"********" 
 //------------------------------------------------------------------------------
+
+[assembly: Microsoft.Xrm.Sdk.Client.ProxyTypesAssemblyAttribute()]
 
 namespace CrmEarlyBound
 {
+	
 	
 	[System.Runtime.Serialization.DataContractAttribute()]
 	[System.CodeDom.Compiler.GeneratedCodeAttribute("CrmSvcUtil", "9.0.0.9154")]
@@ -30,217 +34,6 @@ namespace CrmEarlyBound
 	[System.CodeDom.Compiler.GeneratedCodeAttribute("CrmSvcUtil", "9.0.0.9154")]
 	public partial class Contact : Microsoft.Xrm.Sdk.Entity, System.ComponentModel.INotifyPropertyChanging, System.ComponentModel.INotifyPropertyChanged
 	{
-		
-		public static class Fields
-		{
-			public const string AccountId = "accountid";
-			public const string AccountRoleCode = "accountrolecode";
-			public const string Address1_AddressId = "address1_addressid";
-			public const string Address1_AddressTypeCode = "address1_addresstypecode";
-			public const string Address1_City = "address1_city";
-			public const string Address1_Composite = "address1_composite";
-			public const string Address1_Country = "address1_country";
-			public const string Address1_County = "address1_county";
-			public const string Address1_Fax = "address1_fax";
-			public const string Address1_FreightTermsCode = "address1_freighttermscode";
-			public const string Address1_Latitude = "address1_latitude";
-			public const string Address1_Line1 = "address1_line1";
-			public const string Address1_Line2 = "address1_line2";
-			public const string Address1_Line3 = "address1_line3";
-			public const string Address1_Longitude = "address1_longitude";
-			public const string Address1_Name = "address1_name";
-			public const string Address1_PostalCode = "address1_postalcode";
-			public const string Address1_PostOfficeBox = "address1_postofficebox";
-			public const string Address1_PrimaryContactName = "address1_primarycontactname";
-			public const string Address1_ShippingMethodCode = "address1_shippingmethodcode";
-			public const string Address1_StateOrProvince = "address1_stateorprovince";
-			public const string Address1_Telephone1 = "address1_telephone1";
-			public const string Address1_Telephone2 = "address1_telephone2";
-			public const string Address1_Telephone3 = "address1_telephone3";
-			public const string Address1_UPSZone = "address1_upszone";
-			public const string Address1_UTCOffset = "address1_utcoffset";
-			public const string Address2_AddressId = "address2_addressid";
-			public const string Address2_AddressTypeCode = "address2_addresstypecode";
-			public const string Address2_City = "address2_city";
-			public const string Address2_Composite = "address2_composite";
-			public const string Address2_Country = "address2_country";
-			public const string Address2_County = "address2_county";
-			public const string Address2_Fax = "address2_fax";
-			public const string Address2_FreightTermsCode = "address2_freighttermscode";
-			public const string Address2_Latitude = "address2_latitude";
-			public const string Address2_Line1 = "address2_line1";
-			public const string Address2_Line2 = "address2_line2";
-			public const string Address2_Line3 = "address2_line3";
-			public const string Address2_Longitude = "address2_longitude";
-			public const string Address2_Name = "address2_name";
-			public const string Address2_PostalCode = "address2_postalcode";
-			public const string Address2_PostOfficeBox = "address2_postofficebox";
-			public const string Address2_PrimaryContactName = "address2_primarycontactname";
-			public const string Address2_ShippingMethodCode = "address2_shippingmethodcode";
-			public const string Address2_StateOrProvince = "address2_stateorprovince";
-			public const string Address2_Telephone1 = "address2_telephone1";
-			public const string Address2_Telephone2 = "address2_telephone2";
-			public const string Address2_Telephone3 = "address2_telephone3";
-			public const string Address2_UPSZone = "address2_upszone";
-			public const string Address2_UTCOffset = "address2_utcoffset";
-			public const string Address3_AddressId = "address3_addressid";
-			public const string Address3_AddressTypeCode = "address3_addresstypecode";
-			public const string Address3_City = "address3_city";
-			public const string Address3_Composite = "address3_composite";
-			public const string Address3_Country = "address3_country";
-			public const string Address3_County = "address3_county";
-			public const string Address3_Fax = "address3_fax";
-			public const string Address3_FreightTermsCode = "address3_freighttermscode";
-			public const string Address3_Latitude = "address3_latitude";
-			public const string Address3_Line1 = "address3_line1";
-			public const string Address3_Line2 = "address3_line2";
-			public const string Address3_Line3 = "address3_line3";
-			public const string Address3_Longitude = "address3_longitude";
-			public const string Address3_Name = "address3_name";
-			public const string Address3_PostalCode = "address3_postalcode";
-			public const string Address3_PostOfficeBox = "address3_postofficebox";
-			public const string Address3_PrimaryContactName = "address3_primarycontactname";
-			public const string Address3_ShippingMethodCode = "address3_shippingmethodcode";
-			public const string Address3_StateOrProvince = "address3_stateorprovince";
-			public const string Address3_Telephone1 = "address3_telephone1";
-			public const string Address3_Telephone2 = "address3_telephone2";
-			public const string Address3_Telephone3 = "address3_telephone3";
-			public const string Address3_UPSZone = "address3_upszone";
-			public const string Address3_UTCOffset = "address3_utcoffset";
-			public const string Aging30 = "aging30";
-			public const string Aging30_Base = "aging30_base";
-			public const string Aging60 = "aging60";
-			public const string Aging60_Base = "aging60_base";
-			public const string Aging90 = "aging90";
-			public const string Aging90_Base = "aging90_base";
-			public const string Anniversary = "anniversary";
-			public const string AnnualIncome = "annualincome";
-			public const string AnnualIncome_Base = "annualincome_base";
-			public const string AssistantName = "assistantname";
-			public const string AssistantPhone = "assistantphone";
-			public const string BirthDate = "birthdate";
-			public const string Business2 = "business2";
-			public const string Callback = "callback";
-			public const string ChildrensNames = "childrensnames";
-			public const string Company = "company";
-			public const string ContactId = "contactid";
-			public const string Id = "contactid";
-			public const string CreatedBy = "createdby";
-			public const string CreatedByExternalParty = "createdbyexternalparty";
-			public const string CreatedOn = "createdon";
-			public const string CreatedOnBehalfBy = "createdonbehalfby";
-			public const string CreditLimit = "creditlimit";
-			public const string CreditLimit_Base = "creditlimit_base";
-			public const string CreditOnHold = "creditonhold";
-			public const string CustomerSizeCode = "customersizecode";
-			public const string CustomerTypeCode = "customertypecode";
-			public const string DefaultPriceLevelId = "defaultpricelevelid";
-			public const string Department = "department";
-			public const string Description = "description";
-			public const string di_age = "di_age";
-			public const string di_dateofBirth = "di_dateofbirth";
-			public const string di_EsitimatedReturnFinal = "di_esitimatedreturnfinal";
-			public const string di_estimated_Return = "di_estimated_return";
-			public const string di_interest_rate = "di_interest_rate";
-			public const string di_Intial_Investment = "di_intial_investment";
-			public const string di_intial_investment_Base = "di_intial_investment_base";
-			public const string di_IntialInvesmentFinal = "di_intialinvesmentfinal";
-			public const string di_InvestmentPeriod = "di_investmentperiod";
-			public const string di_joining_date = "di_joining_date";
-			public const string di_maturity_date = "di_maturity_date";
-			public const string DoNotBulkEMail = "donotbulkemail";
-			public const string DoNotBulkPostalMail = "donotbulkpostalmail";
-			public const string DoNotEMail = "donotemail";
-			public const string DoNotFax = "donotfax";
-			public const string DoNotPhone = "donotphone";
-			public const string DoNotPostalMail = "donotpostalmail";
-			public const string DoNotSendMM = "donotsendmm";
-			public const string EducationCode = "educationcode";
-			public const string EMailAddress1 = "emailaddress1";
-			public const string EMailAddress2 = "emailaddress2";
-			public const string EMailAddress3 = "emailaddress3";
-			public const string EmployeeId = "employeeid";
-			public const string EntityImage = "entityimage";
-			public const string EntityImage_Timestamp = "entityimage_timestamp";
-			public const string EntityImage_URL = "entityimage_url";
-			public const string EntityImageId = "entityimageid";
-			public const string ExchangeRate = "exchangerate";
-			public const string ExternalUserIdentifier = "externaluseridentifier";
-			public const string FamilyStatusCode = "familystatuscode";
-			public const string Fax = "fax";
-			public const string FirstName = "firstname";
-			public const string FollowEmail = "followemail";
-			public const string FtpSiteUrl = "ftpsiteurl";
-			public const string FullName = "fullname";
-			public const string GenderCode = "gendercode";
-			public const string GovernmentId = "governmentid";
-			public const string HasChildrenCode = "haschildrencode";
-			public const string Home2 = "home2";
-			public const string ImportSequenceNumber = "importsequencenumber";
-			public const string IsBackofficeCustomer = "isbackofficecustomer";
-			public const string JobTitle = "jobtitle";
-			public const string LastName = "lastname";
-			public const string LastOnHoldTime = "lastonholdtime";
-			public const string LastUsedInCampaign = "lastusedincampaign";
-			public const string LeadSourceCode = "leadsourcecode";
-			public const string ManagerName = "managername";
-			public const string ManagerPhone = "managerphone";
-			public const string MarketingOnly = "marketingonly";
-			public const string MasterId = "masterid";
-			public const string Merged = "merged";
-			public const string MiddleName = "middlename";
-			public const string MobilePhone = "mobilephone";
-			public const string ModifiedBy = "modifiedby";
-			public const string ModifiedByExternalParty = "modifiedbyexternalparty";
-			public const string ModifiedOn = "modifiedon";
-			public const string ModifiedOnBehalfBy = "modifiedonbehalfby";
-			public const string NickName = "nickname";
-			public const string NumberOfChildren = "numberofchildren";
-			public const string OnHoldTime = "onholdtime";
-			public const string OriginatingLeadId = "originatingleadid";
-			public const string OverriddenCreatedOn = "overriddencreatedon";
-			public const string OwnerId = "ownerid";
-			public const string OwningBusinessUnit = "owningbusinessunit";
-			public const string OwningTeam = "owningteam";
-			public const string OwningUser = "owninguser";
-			public const string Pager = "pager";
-			public const string ParentContactId = "parentcontactid";
-			public const string ParentCustomerId = "parentcustomerid";
-			public const string ParticipatesInWorkflow = "participatesinworkflow";
-			public const string PaymentTermsCode = "paymenttermscode";
-			public const string PreferredAppointmentDayCode = "preferredappointmentdaycode";
-			public const string PreferredAppointmentTimeCode = "preferredappointmenttimecode";
-			public const string PreferredContactMethodCode = "preferredcontactmethodcode";
-			public const string PreferredEquipmentId = "preferredequipmentid";
-			public const string PreferredServiceId = "preferredserviceid";
-			public const string PreferredSystemUserId = "preferredsystemuserid";
-			public const string ProcessId = "processid";
-			public const string Salutation = "salutation";
-			public const string ShippingMethodCode = "shippingmethodcode";
-			public const string SLAId = "slaid";
-			public const string SLAInvokedId = "slainvokedid";
-			public const string SpousesName = "spousesname";
-			public const string StageId = "stageid";
-			public const string StateCode = "statecode";
-			public const string StatusCode = "statuscode";
-			public const string SubscriptionId = "subscriptionid";
-			public const string Suffix = "suffix";
-			public const string Telephone1 = "telephone1";
-			public const string Telephone2 = "telephone2";
-			public const string Telephone3 = "telephone3";
-			public const string TerritoryCode = "territorycode";
-			public const string TimeSpentByMeOnEmailAndMeetings = "timespentbymeonemailandmeetings";
-			public const string TimeZoneRuleVersionNumber = "timezoneruleversionnumber";
-			public const string TransactionCurrencyId = "transactioncurrencyid";
-			public const string TraversedPath = "traversedpath";
-			public const string UTCConversionTimeZoneCode = "utcconversiontimezonecode";
-			public const string VersionNumber = "versionnumber";
-			public const string WebSiteUrl = "websiteurl";
-			public const string YomiFirstName = "yomifirstname";
-			public const string YomiFullName = "yomifullname";
-			public const string YomiLastName = "yomilastname";
-			public const string YomiMiddleName = "yomimiddlename";
-		}
 		
 		/// <summary>
 		/// Default Constructor.
@@ -4195,6 +3988,81 @@ namespace CrmEarlyBound
 		}
 		
 		/// <summary>
+		/// 1:N contact_customer_contacts
+		/// </summary>
+		[Microsoft.Xrm.Sdk.RelationshipSchemaNameAttribute("contact_customer_contacts", Microsoft.Xrm.Sdk.EntityRole.Referenced)]
+		public System.Collections.Generic.IEnumerable<CrmEarlyBound.Contact> Referencedcontact_customer_contacts
+		{
+			[System.Diagnostics.DebuggerNonUserCode()]
+			get
+			{
+				return this.GetRelatedEntities<CrmEarlyBound.Contact>("contact_customer_contacts", Microsoft.Xrm.Sdk.EntityRole.Referenced);
+			}
+			[System.Diagnostics.DebuggerNonUserCode()]
+			set
+			{
+				this.OnPropertyChanging("Referencedcontact_customer_contacts");
+				this.SetRelatedEntities<CrmEarlyBound.Contact>("contact_customer_contacts", Microsoft.Xrm.Sdk.EntityRole.Referenced, value);
+				this.OnPropertyChanged("Referencedcontact_customer_contacts");
+			}
+		}
+		
+		/// <summary>
+		/// 1:N contact_master_contact
+		/// </summary>
+		[Microsoft.Xrm.Sdk.RelationshipSchemaNameAttribute("contact_master_contact", Microsoft.Xrm.Sdk.EntityRole.Referenced)]
+		public System.Collections.Generic.IEnumerable<CrmEarlyBound.Contact> Referencedcontact_master_contact
+		{
+			[System.Diagnostics.DebuggerNonUserCode()]
+			get
+			{
+				return this.GetRelatedEntities<CrmEarlyBound.Contact>("contact_master_contact", Microsoft.Xrm.Sdk.EntityRole.Referenced);
+			}
+			[System.Diagnostics.DebuggerNonUserCode()]
+			set
+			{
+				this.OnPropertyChanging("Referencedcontact_master_contact");
+				this.SetRelatedEntities<CrmEarlyBound.Contact>("contact_master_contact", Microsoft.Xrm.Sdk.EntityRole.Referenced, value);
+				this.OnPropertyChanged("Referencedcontact_master_contact");
+			}
+		}
+		
+		/// <summary>
+		/// N:1 contact_customer_contacts
+		/// </summary>
+		[Microsoft.Xrm.Sdk.AttributeLogicalNameAttribute("parentcustomerid")]
+		[Microsoft.Xrm.Sdk.RelationshipSchemaNameAttribute("contact_customer_contacts", Microsoft.Xrm.Sdk.EntityRole.Referencing)]
+		public CrmEarlyBound.Contact Referencingcontact_customer_contacts
+		{
+			[System.Diagnostics.DebuggerNonUserCode()]
+			get
+			{
+				return this.GetRelatedEntity<CrmEarlyBound.Contact>("contact_customer_contacts", Microsoft.Xrm.Sdk.EntityRole.Referencing);
+			}
+			[System.Diagnostics.DebuggerNonUserCode()]
+			set
+			{
+				this.OnPropertyChanging("Referencingcontact_customer_contacts");
+				this.SetRelatedEntity<CrmEarlyBound.Contact>("contact_customer_contacts", Microsoft.Xrm.Sdk.EntityRole.Referencing, value);
+				this.OnPropertyChanged("Referencingcontact_customer_contacts");
+			}
+		}
+		
+		/// <summary>
+		/// N:1 contact_master_contact
+		/// </summary>
+		[Microsoft.Xrm.Sdk.AttributeLogicalNameAttribute("masterid")]
+		[Microsoft.Xrm.Sdk.RelationshipSchemaNameAttribute("contact_master_contact", Microsoft.Xrm.Sdk.EntityRole.Referencing)]
+		public CrmEarlyBound.Contact Referencingcontact_master_contact
+		{
+			[System.Diagnostics.DebuggerNonUserCode()]
+			get
+			{
+				return this.GetRelatedEntity<CrmEarlyBound.Contact>("contact_master_contact", Microsoft.Xrm.Sdk.EntityRole.Referencing);
+			}
+		}
+		
+		/// <summary>
 		/// Constructor for populating via LINQ queries given a LINQ anonymous type
 		/// <param name="anonymousType">LINQ anonymous type.</param>
 		/// </summary>
@@ -4594,6 +4462,53 @@ namespace CrmEarlyBound
 			{
 				TerritoryCode = value.HasValue ? new Microsoft.Xrm.Sdk.OptionSetValue((int)value) : null;
 			}
+		}
+	}
+	
+	/// <summary>
+	/// Represents a source of entities bound to a CRM service. It tracks and manages changes made to the retrieved entities.
+	/// </summary>
+	[System.CodeDom.Compiler.GeneratedCodeAttribute("CrmSvcUtil", "9.0.0.9154")]
+	public partial class CrmServiceContext : Microsoft.Xrm.Sdk.Client.OrganizationServiceContext
+	{
+		
+		/// <summary>
+		/// Constructor.
+		/// </summary>
+		[System.Diagnostics.DebuggerNonUserCode()]
+		public CrmServiceContext(Microsoft.Xrm.Sdk.IOrganizationService service) : 
+				base(service)
+		{
+		}
+		
+		/// <summary>
+		/// Gets a binding to the set of all <see cref="CrmEarlyBound.Contact"/> entities.
+		/// </summary>
+		public System.Linq.IQueryable<CrmEarlyBound.Contact> ContactSet
+		{
+			[System.Diagnostics.DebuggerNonUserCode()]
+			get
+			{
+				return this.CreateQuery<CrmEarlyBound.Contact>();
+			}
+		}
+	}
+	
+	internal sealed class EntityOptionSetEnum
+	{
+		
+		[System.Diagnostics.DebuggerNonUserCode()]
+		public static System.Nullable<int> GetEnum(Microsoft.Xrm.Sdk.Entity entity, string attributeLogicalName)
+		{
+			if (entity.Attributes.ContainsKey(attributeLogicalName))
+			{
+				Microsoft.Xrm.Sdk.OptionSetValue value = entity.GetAttributeValue<Microsoft.Xrm.Sdk.OptionSetValue>(attributeLogicalName);
+				if (value != null)
+				{
+					return value.Value;
+				}
+			}
+			return null;
 		}
 	}
 }

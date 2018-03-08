@@ -1,16 +1,33 @@
-using System;
-using CrmCalculations;
-using CrmEarlyBound;
-using Microsoft.Xrm.Sdk;
-
 namespace DynaInduction.Plugins
 {
+  using System;
+  using CrmCalculations;
+  using CrmEarlyBound;
+  using Microsoft.Xrm.Sdk;
 
+  /// <summary>
+  /// ContactPreOperationUpdate Plugin
+  /// /// </summary>
   public class ContactPreOperationUpdate : PluginBase
   {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ContactPreOperationUpdate"/> class.
+    /// </summary>
+    /// <param name="unsecure">Contains public (unsecured) configuration information</param>
+    /// <param name="secure">Contains non-public (secured) configuration information.</param>
     public ContactPreOperationUpdate(string unsecure, string secure)
-        : base(typeof(ContactPreOperationUpdate)) { }
+        : base(typeof(ContactPreOperationUpdate))
+    {
+    }
 
+    /// <summary>
+    /// Main entry point for he business logic that the plug-in is to execute.
+    /// </summary>
+    /// <param name="localContext">The LocalPluginContext which contains the
+    /// <see cref="IPluginExecutionContext"/>,
+    /// <see cref="IOrganizationService"/>
+    /// and <see cref="ITracingService"/>
+    /// </param>
     protected override void ExecuteCrmPlugin(LocalPluginContext localContext)
     {
       if (localContext == null)
@@ -19,7 +36,6 @@ namespace DynaInduction.Plugins
       }
 
       IPluginExecutionContext context = localContext.PluginExecutionContext;
-      ITracingService trace = localContext.TracingService;
 
       if (context.InputParameters.Contains("Target") && context.InputParameters["Target"] is Entity)
       {
@@ -40,9 +56,6 @@ namespace DynaInduction.Plugins
           throw new InvalidPluginExecutionException("An error occured in the plugin:Pre Update", ex);
         }
       }
-
     }
   }
 }
-
-

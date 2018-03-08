@@ -30,7 +30,7 @@ namespace CrmEarlyBound
 		}
 		
 		/// <summary>
-		/// Gets a binding to the set of all <see cref="CrmEarlyBound.Contact"/> entities.
+		/// Gets a binding to the set of all <see cref="CrmEarlyBound.contact"/> entities.
 		/// </summary>
 		public System.Linq.IQueryable<CrmEarlyBound.Contact> ContactSet
 		{

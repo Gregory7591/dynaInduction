@@ -1390,7 +1390,10 @@ var OneXrm;
         var contact_statuscode;
         (function (contact_statuscode) {
             contact_statuscode[contact_statuscode["Active"] = 1] = "Active";
+            contact_statuscode[contact_statuscode["InForce"] = 100000002] = "InForce";
             contact_statuscode[contact_statuscode["Inactive"] = 2] = "Inactive";
+            contact_statuscode[contact_statuscode["Matured"] = 100000000] = "Matured";
+            contact_statuscode[contact_statuscode["Cancelled"] = 100000001] = "Cancelled";
         })(contact_statuscode = OptionSets.contact_statuscode || (OptionSets.contact_statuscode = {}));
         var contact_territorycode;
         (function (contact_territorycode) {

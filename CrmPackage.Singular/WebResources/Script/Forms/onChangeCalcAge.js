@@ -55,13 +55,17 @@ var DynaInduction;
                     var intialInvestment = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_intialinvesmentfinal.logicalName).getValue();
                     var investmentPeriod = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue();
                     var interestRate = (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_interest_rate.logicalName).getValue()) / 100;
-                    if (intialInvestment != 0 && investmentPeriod != 0 && interestRate != 0) {
+                    if ((intialInvestment != null) && (investmentPeriod != null) && (interestRate != null)) {
                         Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_esitimatedreturnfinal.logicalName).setValue(intialInvestment * (1 + (interestRate * investmentPeriod)));
                     }
                 };
-                Contact.addSixMonthsInvestmentPeriod = function (context) {
-                    var investmentPeriod = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue() + 6;
-                    Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).setValue(investmentPeriod);
+                Contact.calculateMaturityDate = function (context) {
+                    var joiningDate = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_joining_date.logicalName).getValue();
+                    var investmentPeriod = (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue());
+                    if (joiningDate != null && investmentPeriod != 0) {
+                        joiningDate.setMonth(joiningDate.getMonth() + investmentPeriod);
+                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_maturity_date.logicalName).setValue(joiningDate);
+                    }
                 };
                 return Contact;
             }());

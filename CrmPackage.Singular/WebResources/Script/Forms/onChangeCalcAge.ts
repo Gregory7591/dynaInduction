@@ -9,7 +9,6 @@ module DynaInduction {
           //FinalDynamicsChallenge.Forms.contact.Contact.attachEvents(context);
           //FinalDynamicsChallenge.Forms.contact.Contact.businessRules(context, true);
           DynaInduction.Forms.contact.Contact.prefMethodCom(context);
-
           DynaInduction.Forms.contact.Contact.lockFullName(context); 
 
         }
@@ -65,15 +64,20 @@ module DynaInduction {
           var intialInvestment = (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_intialinvesmentfinal.logicalName)).getValue();
           var investmentPeriod = (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName)).getValue();
           var interestRate = ((<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_interest_rate.logicalName)).getValue())/100;
-          if (intialInvestment != 0 && investmentPeriod != 0 && interestRate != 0) {
+          if ((intialInvestment != null) && (investmentPeriod != null) && (interestRate != null)) {
             (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_esitimatedreturnfinal.logicalName)).setValue(intialInvestment * (1 + (interestRate * investmentPeriod)));
           }
         }
-        private static addSixMonthsInvestmentPeriod(context: Xrm.Page.EventContext) {
-          var investmentPeriod = (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName)).getValue() + 6;
-          (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName)).setValue(investmentPeriod);
-          
-        }
+
+        private static calculateMaturityDate(context: Xrm.Page.EventContext) {
+          var joiningDate = (<Xrm.Page.DateAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_joining_date.logicalName)).getValue();
+          var investmentPeriod = ((<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName)).getValue());
+
+          if (joiningDate != null && investmentPeriod != 0) {
+            joiningDate.setMonth(joiningDate.getMonth() + investmentPeriod);
+            (<Xrm.Page.DateAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_maturity_date.logicalName)).setValue(joiningDate);
+          }
+        } 
       }
     }
   }

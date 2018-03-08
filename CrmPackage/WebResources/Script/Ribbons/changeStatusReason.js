@@ -15747,76 +15747,27 @@ var DynaInduction;
     (function (Forms) {
         var contact;
         (function (contact) {
-            var Contact = /** @class */ (function () {
-                function Contact() {
+            var ribbonStatus = /** @class */ (function () {
+                function ribbonStatus() {
                 }
-                Contact.onLoad = function (context) {
-                    //FinalDynamicsChallenge.Forms.contact.Contact.attachEvents(context);
-                    //FinalDynamicsChallenge.Forms.contact.Contact.businessRules(context, true);
-                    DynaInduction.Forms.contact.Contact.prefMethodCom(context);
-                    DynaInduction.Forms.contact.Contact.lockFullName(context);
-                };
-                Contact.onChange = function (context) {
-                    DynaInduction.Forms.contact.Contact.prefMethodCom(context);
-                    if (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.birthdate.logicalName).getValue() != null) {
-                        DynaInduction.Forms.contact.Contact.workAge(context);
-                    }
-                };
-                Contact.onSave = function (context) {
-                    DynaInduction.Forms.contact.Contact.lockFullName(context);
-                };
-                Contact.attachEvents = function (context) { };
-                Contact.businessRules = function (context, onLoad) {
-                    if (onLoad === void 0) { onLoad = false; }
-                };
-                Contact.lockFullName = function (context) {
-                    if (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.fullname.logicalName).getValue() != null) {
-                        Xrm.Page.getControl(OneXrm.Entities.contact.Attributes.fullname.logicalName).setDisabled(true);
-                        //Xrm.Page.ui.getFormType();
-                    }
-                };
-                Contact.workAge = function (context) {
+                ribbonStatus.matured = function (context) {
                     var currentDate = new Date();
-                    var BirthDate = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.birthdate.logicalName).getValue();
-                    var dateDiff = currentDate.getMonth() - BirthDate.getMonth();
-                    if (dateDiff > -1) {
-                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_age.logicalName).setValue(currentDate.getFullYear() - BirthDate.getFullYear());
+                    var maturityDate = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_maturity_date.logicalName).getValue();
+                    if (maturityDate <= currentDate) {
+                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.statuscode.logicalName).setValue(OneXrm.OptionSets.contact_statuscode.Matured);
                     }
-                    else {
-                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_age.logicalName).setValue(currentDate.getFullYear() - BirthDate.getFullYear() - 1);
-                    }
+                    else
+                        alert("Cannot change status to matured as the investment is not past its maturity date");
                 };
-                Contact.prefMethodCom = function (context) {
-                    var prefferedContactMethodCode = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.preferredcontactmethodcode.logicalName).getValue();
-                    Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.emailaddress1.logicalName).setRequiredLevel((prefferedContactMethodCode === OneXrm.OptionSets.contact_preferredcontactmethodcode.Any || prefferedContactMethodCode === 2) ? "required" : "required");
-                    Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.mobilephone.logicalName).setRequiredLevel((prefferedContactMethodCode === 3 ? "required" : "none"));
-                    Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.fax.logicalName).setRequiredLevel((prefferedContactMethodCode === 4 ? "required" : "none"));
-                };
-                Contact.estimatedReturn = function (context) {
-                    var intialInvestment = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_intialinvesmentfinal.logicalName).getValue();
-                    var investmentPeriod = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue();
-                    var interestRate = (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_interest_rate.logicalName).getValue()) / 100;
-                    if ((intialInvestment != null) && (investmentPeriod != null) && (interestRate != null)) {
-                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_esitimatedreturnfinal.logicalName).setValue(intialInvestment * (1 + (interestRate * investmentPeriod)));
-                    }
-                };
-                Contact.calculateMaturityDate = function (context) {
-                    var joiningDate = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_joining_date.logicalName).getValue();
-                    var investmentPeriod = (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue());
-                    if (joiningDate != null && investmentPeriod != 0) {
-                        joiningDate.setMonth(joiningDate.getMonth() + investmentPeriod);
-                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_maturity_date.logicalName).setValue(joiningDate);
-                    }
-                };
-                return Contact;
+                return ribbonStatus;
             }());
-            contact.Contact = Contact;
+            contact.ribbonStatus = ribbonStatus;
         })(contact = Forms.contact || (Forms.contact = {}));
     })(Forms = DynaInduction.Forms || (DynaInduction.Forms = {}));
 })(DynaInduction || (DynaInduction = {}));
 window["DynaInduction"] = window["DynaInduction"] || DynaInduction;
 window["DynaInduction"].Forms = window["DynaInduction"].Forms || DynaInduction.Forms;
 window["DynaInduction"].Forms.contact = window["DynaInduction"].Forms.contact || DynaInduction.Forms.contact;
-window["DynaInduction"].Forms.contact.Contact = window["DynaInduction"].Forms.contact.Event || DynaInduction.Forms.contact.Contact;
+window["DynaInduction"].Forms.contact.ribbonStatus = window["DynaInduction"].Forms.contact.Event || DynaInduction.Forms.contact.ribbonStatus;
 
 })(window['OneXrmjQuery']);

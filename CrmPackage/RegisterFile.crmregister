@@ -1,31 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Register xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://schemas.microsoft.com/crm/2011/tools/pluginregistration">
   <Solutions>
-    <Solution Assembly="DynaInduction.Plugins.dll" Id="70e4e080-c281-46a6-8bde-4502b2f8b037" IsolationMode="Sandbox" SourceType="Database">
+    <Solution Assembly="DynaInduction.Plugins.dll" Id="88716ce1-bcda-4609-9782-bb107cf6ef4c" IsolationMode="Sandbox" SourceType="Database">
       <PluginTypes>
         <clear />
-        <Plugin Description="Plug-in to Create of contact" FriendlyName="Create of contact" Name="DynaInduction.Plugins.ContactPreOperationCreate" Id="6f827c42-7775-407e-8921-8de61a8179b8" TypeName="DynaInduction.Plugins.ContactPreOperationCreate">
+        <Plugin Description="Plug-in to Create of contact" FriendlyName="Create of contact" Name="DynaInduction.Plugins.ContactPreOperationCreate" Id="6140fb0a-063c-4d47-8a83-d4a4749dac1e" TypeName="DynaInduction.Plugins.ContactPreOperationCreate">
           <Steps>
             <clear />
-            <Step AsyncAutoDelete="false" Name="Create of contact" Description="Create of contact" Id="d4ab7cd2-e017-e811-a956-000d3ab27f0e" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Create" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PreInsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
+            <Step AsyncAutoDelete="false" Name="Create of contact" Description="Create of contact" Id="980332fd-6720-e811-a82e-000d3ab48443" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Create" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PreInsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
               <Images />
             </Step>
           </Steps>
         </Plugin>
-        <Plugin Description="Plug-in to Create of contact" FriendlyName="Create of contact" Name="DynaInduction.Plugins.ContactPostOperationCreate" Id="c3db34a9-e1b2-4247-b503-3f33ff23dcf4" TypeName="DynaInduction.Plugins.ContactPostOperationCreate">
+        <Plugin Description="Plug-in to Create of contact" FriendlyName="Create of contact" Name="DynaInduction.Plugins.ContactPostOperationCreate" Id="0b685a68-5885-4e27-a8c9-97290dc60328" TypeName="DynaInduction.Plugins.ContactPostOperationCreate">
           <Steps>
             <clear />
-            <Step AsyncAutoDelete="false" Name="Create of contact" Description="Create of contact" Id="d3977dd6-e017-e811-a953-000d3ab27f6e" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Create" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PostOutsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
+            <Step AsyncAutoDelete="false" Name="Create of contact" Description="Create of contact" Id="398e2c06-6820-e811-a82c-000d3ab48607" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Create" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PostOutsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
               <Images />
             </Step>
           </Steps>
         </Plugin>
-        <Plugin Description="Plug-in to Update of contact" FriendlyName="Update of contact" Name="DynaInduction.Plugins.ContactPreOperationUpdate" Id="475dd33d-3890-40e4-afd9-116f25f7b937" TypeName="DynaInduction.Plugins.ContactPreOperationUpdate">
+        <Plugin Description="Plug-in to Update of contact" FriendlyName="Update of contact" Name="DynaInduction.Plugins.ContactPreOperationUpdate" Id="a0a3dc76-dfaf-4d71-aa0b-87392984f3b0" TypeName="DynaInduction.Plugins.ContactPreOperationUpdate">
           <Steps>
             <clear />
-            <Step AsyncAutoDelete="false" Name="Update of contact" Description="Update of contact" Id="d6977dd6-e017-e811-a953-000d3ab27f6e" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Update" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PreInsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
+            <Step AsyncAutoDelete="false" Name="Update of contact" Description="Update of contact" Id="0e1e5a0e-6820-e811-a82c-000d3ab488e0" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Update" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PreInsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
               <Images>
                 <Image EntityAlias="contactPreImage" Id="c4bb19b7-d117-e811-a952-000d3ab11b7a" MessagePropertyName="Target" ImageType="PreImage" />
+              </Images>
+            </Step>
+          </Steps>
+        </Plugin>
+        <Plugin Description="Plug-in to Update of contact" FriendlyName="Update of contact" Name="DynaInduction.Plugins.ContactPostOperationUpdate" Id="8fd85378-c33c-4154-8672-3ad67de420f9" TypeName="DynaInduction.Plugins.ContactPostOperationUpdate">
+          <Steps>
+            <clear />
+            <Step AsyncAutoDelete="false" Name="Update of contact" Description="Update of contact" Id="f61abde7-e921-e811-a82e-000d3ab4831f" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Update" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PostOutsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
+              <Images>
+                <Image EntityAlias="contactPostImage" Id="1066a5ee-7620-e811-a82c-000d3ab488e0" MessagePropertyName="Target" ImageType="PostImage" />
               </Images>
             </Step>
           </Steps>

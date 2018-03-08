@@ -1753,7 +1753,10 @@ namespace OneXrm {
     }
     export enum contact_statuscode {
       Active = 1,
-      Inactive = 2
+      InForce = 100000002,
+      Inactive = 2,
+      Matured = 100000000,
+      Cancelled = 100000001
     }
     export enum contact_territorycode {
       DefaultValue = 1

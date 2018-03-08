@@ -1,15 +1,31 @@
-using System;
-using System.ServiceModel;
-using CrmEarlyBound;
-using Microsoft.Xrm.Sdk;
-
 namespace DynaInduction.Plugins
 {
+  using System;
+  using System.ServiceModel;
+  using CrmEarlyBound;
+  using Microsoft.Xrm.Sdk;
+
+  /// <summary>
+  /// ContactPostOperationCreate Plugin.
+  /// </summary>
   public class ContactPostOperationCreate : PluginBase
   {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ContactPostOperationCreate"/> class.
+    /// </summary>
+    /// <param name="unsecure">Contains public (unsecured) configuration information.</param>
+    /// <param name="secure">Contains non-public (secured) configuration information. </param>
     public ContactPostOperationCreate(string unsecure, string secure)
-        : base(typeof(ContactPostOperationCreate)) { }
+        : base(typeof(ContactPostOperationCreate)) {
+    }
 
+    /// <summary>
+    /// Main entry point for he business logic that the plug-in is to execute.
+    /// </summary>
+    /// <param name="localContext">The LocalPluginContext which contains the
+    /// <see cref="IPluginExecutionContext"/>,
+    /// <see cref="IOrganizationService"/>
+    /// and <see cref="ITracingService"/></param>
     protected override void ExecuteCrmPlugin(LocalPluginContext localContext)
     {
       if (localContext == null)
@@ -52,5 +68,3 @@ namespace DynaInduction.Plugins
     }
   }
 }
-
-

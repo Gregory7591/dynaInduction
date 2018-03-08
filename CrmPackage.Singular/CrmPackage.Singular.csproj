@@ -101,12 +101,11 @@
     <TypeScriptCompile Include="Scripts\typings\xrm\xrm-7.1.d.ts" />
     <TypeScriptCompile Include="Scripts\typings\xrm\xrm.d.ts" />
     <TypeScriptCompile Include="WebResources\Script\Forms\onChangeCalcAge.ts" />
+    <TypeScriptCompile Include="WebResources\Script\Ribbons\buttonInvestmentPeriod.ts" />
+    <TypeScriptCompile Include="WebResources\Script\Ribbons\changeStatusReason.ts" />
   </ItemGroup>
   <ItemGroup>
     <Service Include="{4A0DDDB5-7A95-4FBF-97CC-616D07737A77}" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="WebResources\Script\Ribbons\" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>

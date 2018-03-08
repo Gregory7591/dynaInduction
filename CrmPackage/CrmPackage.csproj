@@ -51,6 +51,16 @@
       <UniqueName>di_onChangeCalcAge</UniqueName>
       <WebResourceType>Script</WebResourceType>
     </CRMWebResource>
+    <CRMWebResource Include="WebResources\Script\Ribbons\buttonInvestmentPeriod.js">
+      <DisplayName>buttonInvestmentPeriod</DisplayName>
+      <UniqueName>di_buttonInvestmentPeriod</UniqueName>
+      <WebResourceType>Script</WebResourceType>
+    </CRMWebResource>
+    <CRMWebResource Include="WebResources\Script\Ribbons\changeStatusReason.js">
+      <DisplayName>changeStatusReason</DisplayName>
+      <UniqueName>di_changeStatusReason</UniqueName>
+      <WebResourceType>Script</WebResourceType>
+    </CRMWebResource>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Plugins\Plugins.csproj">
