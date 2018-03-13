@@ -1,8 +1,9 @@
 namespace DynaInduction.Plugins
 {
   using System;
-  using System.IO;
-  using System.Xml.Serialization;
+  using System.Collections.Generic;
+  using System.Linq;
+  using System.Xml.Linq;
   using CrmEarlyBound;
   using Microsoft.Crm.Sdk.Messages;
   using Microsoft.Xrm.Sdk;
@@ -14,12 +15,9 @@ namespace DynaInduction.Plugins
   /// </summary>    
   public class ContactPostOperationUpdate : PluginBase
   {
-    private Guid emailId;
-    private Guid contactId;
-    private Guid userId;
-    private Guid templateId;
-    private OrganizationServiceProxy serviceProxy;
-
+    private Guid emailId = new Guid("5ad5b095-aee7-e011-9765-115056be0007");
+    private Guid templateId = new Guid("5ad5b095-aee7-e011-9765-005056be0007");
+   
     /// <summary>
     /// Initializes a new instance of the <see cref="ContactPostOperationUpdate"/> class.
     /// </summary>
@@ -31,7 +29,7 @@ namespace DynaInduction.Plugins
         : base(typeof(ContactPostOperationUpdate))
     {
     }
-    
+
     /// <summary>
     /// Main entry point for he business logic that the plug-in is to execute.
     /// </summary>
@@ -44,113 +42,110 @@ namespace DynaInduction.Plugins
     {
       IPluginExecutionContext context = localContext.PluginExecutionContext;
       IOrganizationService service = localContext.OrganizationService;
-      ITracingService tracing = localContext.TracingService;
-      Entity entity = (Entity)context.InputParameters["Target"];
-      Contact contact = entity.ToEntity<Contact>();
+      Entity preEntity = (Entity)context.PreEntityImages["contactPreImage"];
+      Contact precontact = preEntity.ToEntity<Contact>();
       Entity postEntity = (Entity)context.PostEntityImages["contactPostImage"];
       Contact postContact = postEntity.ToEntity<Contact>();
 
-      string bodyXml =
-                     "<?xml version=\"1.0\" ?>"
-                     + "<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" version=\"1.0\">"
-                     + "<xsl:output method=\"text\" indent=\"no\"/><xsl:template match=\"/data\">"
-                     + "<![CDATA["
-                     + "This message is to notify you that a new account has been created."
-                     + "]]></xsl:template></xsl:stylesheet>";
-
-      string subjectXml =
-         "<?xml version=\"1.0\" ?>"
-         + "<xsl:stylesheet xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\" version=\"1.0\">"
-         + "<xsl:output method=\"text\" indent=\"no\"/><xsl:template match=\"/data\">"
-         + "<![CDATA[New account notification]]></xsl:template></xsl:stylesheet>";
-
-      string presentationXml =
-         "<template><text><![CDATA["
-         + "This message is to notify you that a new account has been created."
-         + "]]></text></template>";
-
-      string subjectPresentationXml =
-         "<template><text><![CDATA[New account notification]]></text></template>";
-
-      tracing.Trace("2");
-
-      Template template = new Template
+      if (precontact.di_IntialInvesmentFinal != postContact.di_IntialInvesmentFinal || precontact.di_interest_rate != postContact.di_interest_rate || precontact.di_InvestmentPeriod != postContact.di_InvestmentPeriod)
       {
-        Title = "Sample E-mail Template for Account",
-        Body = bodyXml,
-        Subject = subjectXml,
-        PresentationXml = presentationXml,
-        SubjectPresentationXml = subjectPresentationXml,
-        TemplateTypeCode = Contact.EntityLogicalName,
-        LanguageCode = 1033, // For US English.
-        IsPersonal = false
-      };
-      
-      tracing.Trace("3");
+        Entity entity = GetGlobalTemplate("Changes", service);
+        Email email = new Email();        
+        ActivityParty activityParty = new ActivityParty();
+        email.LogicalName = "email";
+        email.Subject = GetDataFromXml("match", entity.Attributes["subject"].ToString());
+        email.Subject = email.Subject.ToString().Replace("[subject]", "Changes Noticed on your account");
+        email.Description = GetDataFromXml("match", entity.Attributes["body"].ToString());
+        string urlToReplace =
+          "<html><body><table border=1>" +
+          "<tr><th>Field</th><th>Before</th><th>After</th>" +
+          "</tr><tr><td>Initial Investment</td><td>" + Math.Round(precontact.di_IntialInvesmentFinal.GetValueOrDefault(0), 2) + "</td><td>" + Math.Round(postContact.di_IntialInvesmentFinal.GetValueOrDefault(0), 2) +
+          "</td></tr><tr><td>Interest Rate</td><td>" + Math.Round(precontact.di_interest_rate.GetValueOrDefault(0), 2) + "</td><td>" + Math.Round(postContact.di_interest_rate.GetValueOrDefault(0), 2) +
+          "</td></tr><tr><td>Investment Period</td><td>" + precontact.di_InvestmentPeriod + "</td><td>" + postContact.di_InvestmentPeriod + "</td></tr>" +
+          "</table></body></html>";
+        email.Description = email.Description.ToString().Replace("[fullname]", postContact.FullName);
+        email.Description = email.Description.ToString().Replace("[table]", urlToReplace);
+        email.From = CreateActivityPartyList(postContact.OwnerId);
+        email.To = CreateActivityPartyList(new EntityReference(Contact.EntityLogicalName, postContact.ContactId.Value));
+        email.RegardingObjectId = (new EntityReference(Contact.EntityLogicalName, postContact.ContactId.Value));
+        Guid emailCreated = service.Create(email);
+        SendEmailRequest req = new SendEmailRequest();
+        req.EmailId = emailCreated;
+        req.TrackingToken = string.Empty;
+        req.IssueSend = true;
+        SendEmailResponse res = (SendEmailResponse)service.Execute(req);
+      }
+    }
 
-      this.templateId = service.Create(template);
-      Console.WriteLine("Created {0}.", template.Title);
-      tracing.Trace("4");
-
-      InstantiateTemplateRequest instTemplateReq = new InstantiateTemplateRequest
+    /// <summary>
+    /// 54646
+    /// </summary>
+    /// <param name="title">213123</param>
+    /// <param name="orgService">2132131</param>
+    /// <returns>2131232</returns>
+    public static Entity GetGlobalTemplate(string title, IOrganizationService orgService)
+    {
+      Entity emailTemplate = null;
+      try
       {
-        TemplateId = template.Id,
-        ObjectId = contact.Id,
-        ObjectType = Contact.EntityLogicalName
-      };
-      tracing.Trace("5");
-      InstantiateTemplateResponse instTemplateResp = (InstantiateTemplateResponse)service.Execute(instTemplateReq);
-      WhoAmIRequest systemUserRequest = new WhoAmIRequest();
-      tracing.Trace("6");
-      WhoAmIResponse systemUserResponse = (WhoAmIResponse)service.Execute(systemUserRequest);
-      tracing.Trace("7");
-      this.userId = systemUserResponse.UserId;
-      tracing.Trace("8");
+        QueryExpression query = new QueryExpression();
+        query.EntityName = "template";
+        query.ColumnSet.AllColumns = true;
+        query.Criteria = new FilterExpression();
+        query.Criteria.FilterOperator = LogicalOperator.And;
+        ConditionExpression condition1 = new ConditionExpression();
+        condition1.AttributeName = "title";
+        condition1.Operator = ConditionOperator.Equal;
+        condition1.Values.Add(title);
+        query.Criteria.Conditions.Add(condition1);
+        EntityCollection entityColl = orgService.RetrieveMultiple(query);
 
-      ActivityParty fromParty = new ActivityParty
+        if (entityColl.Entities.Count > 0)
+        {
+          emailTemplate = entityColl.Entities[0];
+        }
+      }
+      catch
       {
-        PartyId = new EntityReference(context.PrimaryEntityName, context.UserId)
-      };
-      tracing.Trace("9");
+        throw;
+      }
+      return emailTemplate;
+    }
 
-      // Create the 'To:' activity party for the email
-      ActivityParty toParty = new ActivityParty
+    /// <summary>
+    /// 678687
+    /// </summary>
+    /// <param name="attributeName">213213</param>
+    /// <param name="value">213213</param>
+    /// <returns>21321</returns>
+    private static string GetDataFromXml(string attributeName, string value)
+    {
+      if (string.IsNullOrEmpty(value))
       {
-        PartyId = new EntityReference(Contact.EntityLogicalName, this.contactId)
-      };
-      tracing.Trace("10");
-      Email email = new Email
+        return string.Empty;
+      }
+
+      XDocument document = XDocument.Parse(value);
+      XElement element = document.Descendants().Where(ele => ele.Attributes().Any(attr => attr.Name == attributeName)).FirstOrDefault();
+      return element == null ? string.Empty : element.Value;
+    }
+
+    /// <summary>
+    /// Create an activity party list
+    /// </summary>
+    /// <param name="parties">The Parties</param>
+    /// <returns>An activity party list</returns>
+    public static ActivityParty[] CreateActivityPartyList(params EntityReference[] parties)
+    {
+      List<ActivityParty> activityParties = new List<ActivityParty>();
+      foreach (EntityReference party in parties)
       {
-        To = new ActivityParty[] { toParty },
-        From = new ActivityParty[] { fromParty },
-        Subject = "SDK Sample e-mail",
-        Description = "SDK Sample for SendEmail Message.",
-        DirectionCode = true
-      };
-      tracing.Trace("11");
-      tracing.Trace("12");
-      
-      tracing.Trace("13");
-      
-      tracing.Trace("14");
-
-      SendEmailFromTemplateRequest emailUsingTemplateReq = new SendEmailFromTemplateRequest
-      {
-        Target = email,
-
-        // Use a built-in Email Template of type "contact".
-        TemplateId = template.Id,
-
-        // The regarding Id is required, and must be of the same type as the Email Template.
-        RegardingId = contact.Id,
-        RegardingType = Contact.EntityLogicalName
-      };
-      tracing.Trace("16");
-      SendEmailFromTemplateResponse emailUsingTemplateResp = (SendEmailFromTemplateResponse)service.Execute(emailUsingTemplateReq);
-      tracing.Trace("17");
-      this.emailId = emailUsingTemplateResp.Id;
-
-      tracing.Trace("18");
+        if (party != null)
+        {
+          activityParties.Add(new ActivityParty { PartyId = party });
+        }
+      }
+      return activityParties.ToArray();
     }
   }
 }

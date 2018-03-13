@@ -23,18 +23,19 @@
         <Plugin Description="Plug-in to Update of contact" FriendlyName="Update of contact" Name="DynaInduction.Plugins.ContactPreOperationUpdate" Id="a0a3dc76-dfaf-4d71-aa0b-87392984f3b0" TypeName="DynaInduction.Plugins.ContactPreOperationUpdate">
           <Steps>
             <clear />
-            <Step AsyncAutoDelete="false" Name="Update of contact" Description="Update of contact" Id="0e1e5a0e-6820-e811-a82c-000d3ab488e0" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Update" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PreInsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
+            <Step AsyncAutoDelete="false" Name="Update of contact" Description="Update of contact" Id="12b30897-9323-e811-a832-000d3ab48e2a" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Update" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PreInsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
               <Images>
                 <Image EntityAlias="contactPreImage" Id="c4bb19b7-d117-e811-a952-000d3ab11b7a" MessagePropertyName="Target" ImageType="PreImage" />
               </Images>
             </Step>
           </Steps>
         </Plugin>
-        <Plugin Description="Plug-in to Update of contact" FriendlyName="Update of contact" Name="DynaInduction.Plugins.ContactPostOperationUpdate" Id="8fd85378-c33c-4154-8672-3ad67de420f9" TypeName="DynaInduction.Plugins.ContactPostOperationUpdate">
+        <Plugin Description="Plug-in to Update of contact" FriendlyName="Update of contact" Name="DynaInduction.Plugins.ContactPostOperationUpdate" Id="19405d7f-8d4a-4e2a-852c-e07ebcd52977" TypeName="DynaInduction.Plugins.ContactPostOperationUpdate">
           <Steps>
             <clear />
-            <Step AsyncAutoDelete="false" Name="Update of contact" Description="Update of contact" Id="f61abde7-e921-e811-a82e-000d3ab4831f" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Update" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PostOutsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
+            <Step AsyncAutoDelete="false" Name="Update of contact" Description="Update of contact" Id="fd8f459d-c325-e811-a82e-000d3ab48e6b" ImpersonatingUserId="00000000-0000-0000-0000-000000000000" MessageName="Update" Mode="Synchronous" PrimaryEntityName="contact" Rank="1" Stage="PostOutsideTransaction" SupportedDeployment="ServerOnly" MessageEntityId="00000000-0000-0000-0000-000000000000">
               <Images>
+                <Image EntityAlias="contactPreImage" Id="f7b83b01-a623-e811-a82e-000d3ab48443" MessagePropertyName="Target" ImageType="PreImage" />
                 <Image EntityAlias="contactPostImage" Id="1066a5ee-7620-e811-a82c-000d3ab488e0" MessagePropertyName="Target" ImageType="PostImage" />
               </Images>
             </Step>

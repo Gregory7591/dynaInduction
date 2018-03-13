@@ -10231,2726 +10231,2726 @@ return jQuery;
 
 Enumerable = (function ()
 {
-    var Enumerable = function (getEnumerator)
-    {
-        this.GetEnumerator = getEnumerator;
-    }
-
-    // Generator
-
-    Enumerable.Choice = function () // variable argument
-    {
-        var args = (arguments[0] instanceof Array) ? arguments[0] : arguments;
-
-        return new Enumerable(function ()
-        {
-            return new IEnumerator(
-                Functions.Blank,
-                function ()
-                {
-                    return this.Yield(args[Math.floor(Math.random() * args.length)]);
-                },
-                Functions.Blank);
-        });
-    }
-
-    Enumerable.Cycle = function () // variable argument
-    {
-        var args = (arguments[0] instanceof Array) ? arguments[0] : arguments;
-
-        return new Enumerable(function ()
-        {
-            var index = 0;
-            return new IEnumerator(
-                Functions.Blank,
-                function ()
-                {
-                    if (index >= args.length) index = 0;
-                    return this.Yield(args[index++]);
-                },
-                Functions.Blank);
-        });
-    }
-
-    Enumerable.Empty = function ()
-    {
-        return new Enumerable(function ()
-        {
-            return new IEnumerator(
-                Functions.Blank,
-                function () { return false; },
-                Functions.Blank);
-        });
-    }
-
-    Enumerable.From = function (obj)
-    {
-        if (obj == null)
-        {
-            return Enumerable.Empty();
-        }
-        if (obj instanceof Enumerable)
-        {
-            return obj;
-        }
-        if (typeof obj == Types.Number || typeof obj == Types.Boolean)
-        {
-            return Enumerable.Repeat(obj, 1);
-        }
-        if (typeof obj == Types.String)
-        {
-            return new Enumerable(function ()
-            {
-                var index = 0;
-                return new IEnumerator(
-                    Functions.Blank,
-                    function ()
-                    {
-                        return (index < obj.length) ? this.Yield(obj.charAt(index++)) : false;
-                    },
-                    Functions.Blank);
-            });
-        }
-        if (typeof obj != Types.Function)
-        {
-            // array or array like object
-            if (typeof obj.length == Types.Number)
-            {
-                return new ArrayEnumerable(obj);
-            }
-
-            // JScript's IEnumerable
-            if (!(obj instanceof Object) && Utils.IsIEnumerable(obj))
-            {
-                return new Enumerable(function ()
-                {
-                    var isFirst = true;
-                    var enumerator;
-                    return new IEnumerator(
-                        function () { enumerator = new Enumerator(obj); },
-                        function ()
-                        {
-                            if (isFirst) isFirst = false;
-                            else enumerator.moveNext();
-
-                            return (enumerator.atEnd()) ? false : this.Yield(enumerator.item());
-                        },
-                        Functions.Blank);
-                });
-            }
-        }
-
-        // case function/object : Create KeyValuePair[]
-        return new Enumerable(function ()
-        {
-            var array = [];
-            var index = 0;
-
-            return new IEnumerator(
-                function ()
-                {
-                    for (var key in obj)
-                    {
-                        if (!(obj[key] instanceof Function))
-                        {
-                            array.push({ Key: key, Value: obj[key] });
-                        }
-                    }
-                },
-                function ()
-                {
-                    return (index < array.length)
-                        ? this.Yield(array[index++])
-                        : false;
-                },
-                Functions.Blank);
-        });
-    },
-
-    Enumerable.Return = function (element)
-    {
-        return Enumerable.Repeat(element, 1);
-    }
-
-    // Overload:function(input, pattern)
-    // Overload:function(input, pattern, flags)
-    Enumerable.Matches = function (input, pattern, flags)
-    {
-        if (flags == null) flags = "";
-        if (pattern instanceof RegExp)
-        {
-            flags += (pattern.ignoreCase) ? "i" : "";
-            flags += (pattern.multiline) ? "m" : "";
-            pattern = pattern.source;
-        }
-        if (flags.indexOf("g") === -1) flags += "g";
-
-        return new Enumerable(function ()
-        {
-            var regex;
-            return new IEnumerator(
-                function () { regex = new RegExp(pattern, flags) },
-                function ()
-                {
-                    var match = regex.exec(input);
-                    return (match) ? this.Yield(match) : false;
-                },
-                Functions.Blank);
-        });
-    }
-
-    // Overload:function(start, count)
-    // Overload:function(start, count, step)
-    Enumerable.Range = function (start, count, step)
-    {
-        if (step == null) step = 1;
-        return Enumerable.ToInfinity(start, step).Take(count);
-    }
-
-    // Overload:function(start, count)
-    // Overload:function(start, count, step)
-    Enumerable.RangeDown = function (start, count, step)
-    {
-        if (step == null) step = 1;
-        return Enumerable.ToNegativeInfinity(start, step).Take(count);
-    }
-
-    // Overload:function(start, to)
-    // Overload:function(start, to, step)
-    Enumerable.RangeTo = function (start, to, step)
-    {
-        if (step == null) step = 1;
-        return (start < to)
-            ? Enumerable.ToInfinity(start, step).TakeWhile(function (i) { return i <= to; })
-            : Enumerable.ToNegativeInfinity(start, step).TakeWhile(function (i) { return i >= to; })
-    }
-
-    // Overload:function(obj)
-    // Overload:function(obj, num)
-    Enumerable.Repeat = function (obj, num)
-    {
-        if (num != null) return Enumerable.Repeat(obj).Take(num);
-
-        return new Enumerable(function ()
-        {
-            return new IEnumerator(
-                Functions.Blank,
-                function () { return this.Yield(obj); },
-                Functions.Blank);
-        });
-    }
-
-    Enumerable.RepeatWithFinalize = function (initializer, finalizer)
-    {
-        initializer = Utils.CreateLambda(initializer);
-        finalizer = Utils.CreateLambda(finalizer);
-
-        return new Enumerable(function ()
-        {
-            var element;
-            return new IEnumerator(
-                function () { element = initializer(); },
-                function () { return this.Yield(element); },
-                function ()
-                {
-                    if (element != null)
-                    {
-                        finalizer(element);
-                        element = null;
-                    }
-                });
-        });
-    }
-
-    // Overload:function(func)
-    // Overload:function(func, count)
-    Enumerable.Generate = function (func, count)
-    {
-        if (count != null) return Enumerable.Generate(func).Take(count);
-        func = Utils.CreateLambda(func);
-
-        return new Enumerable(function ()
-        {
-            return new IEnumerator(
-                Functions.Blank,
-                function () { return this.Yield(func()); },
-                Functions.Blank);
-        });
-    }
-
-    // Overload:function()
-    // Overload:function(start)
-    // Overload:function(start, step)
-    Enumerable.ToInfinity = function (start, step)
-    {
-        if (start == null) start = 0;
-        if (step == null) step = 1;
-
-        return new Enumerable(function ()
-        {
-            var value;
-            return new IEnumerator(
-                function () { value = start - step },
-                function () { return this.Yield(value += step); },
-                Functions.Blank);
-        });
-    }
-
-    // Overload:function()
-    // Overload:function(start)
-    // Overload:function(start, step)
-    Enumerable.ToNegativeInfinity = function (start, step)
-    {
-        if (start == null) start = 0;
-        if (step == null) step = 1;
-
-        return new Enumerable(function ()
-        {
-            var value;
-            return new IEnumerator(
-                function () { value = start + step },
-                function () { return this.Yield(value -= step); },
-                Functions.Blank);
-        });
-    }
-
-    Enumerable.Unfold = function (seed, func)
-    {
-        func = Utils.CreateLambda(func);
-
-        return new Enumerable(function ()
-        {
-            var isFirst = true;
-            var value;
-            return new IEnumerator(
-                Functions.Blank,
-                function ()
-                {
-                    if (isFirst)
-                    {
-                        isFirst = false;
-                        value = seed;
-                        return this.Yield(value);
-                    }
-                    value = func(value);
-                    return this.Yield(value);
-                },
-                Functions.Blank);
-        });
-    }
-
-    // Extension Methods
-
-    Enumerable.prototype =
-    {
-        /* Projection and Filtering Methods */
-
-        // Overload:function(func)
-        // Overload:function(func, resultSelector<element>)
-        // Overload:function(func, resultSelector<element, nestLevel>)
-        CascadeBreadthFirst: function (func, resultSelector)
-        {
-            var source = this;
-            func = Utils.CreateLambda(func);
-            resultSelector = Utils.CreateLambda(resultSelector);
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var nestLevel = 0;
-                var buffer = [];
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        while (true)
-                        {
-                            if (enumerator.MoveNext())
-                            {
-                                buffer.push(enumerator.Current());
-                                return this.Yield(resultSelector(enumerator.Current(), nestLevel));
-                            }
-
-                            var next = Enumerable.From(buffer).SelectMany(function (x) { return func(x); });
-                            if (!next.Any())
-                            {
-                                return false;
-                            }
-                            else
-                            {
-                                nestLevel++;
-                                buffer = [];
-                                Utils.Dispose(enumerator);
-                                enumerator = next.GetEnumerator();
-                            }
-                        }
-                    },
-                    function () { Utils.Dispose(enumerator); });
-            });
-        },
-
-        // Overload:function(func)
-        // Overload:function(func, resultSelector<element>)
-        // Overload:function(func, resultSelector<element, nestLevel>)
-        CascadeDepthFirst: function (func, resultSelector)
-        {
-            var source = this;
-            func = Utils.CreateLambda(func);
-            resultSelector = Utils.CreateLambda(resultSelector);
-
-            return new Enumerable(function ()
-            {
-                var enumeratorStack = [];
-                var enumerator;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        while (true)
-                        {
-                            if (enumerator.MoveNext())
-                            {
-                                var value = resultSelector(enumerator.Current(), enumeratorStack.length);
-                                enumeratorStack.push(enumerator);
-                                enumerator = Enumerable.From(func(enumerator.Current())).GetEnumerator();
-                                return this.Yield(value);
-                            }
-
-                            if (enumeratorStack.length <= 0) return false;
-                            Utils.Dispose(enumerator);
-                            enumerator = enumeratorStack.pop();
-                        }
-                    },
-                    function ()
-                    {
-                        try { Utils.Dispose(enumerator); }
-                        finally { Enumerable.From(enumeratorStack).ForEach(function (s) { s.Dispose(); }) }
-                    });
-            });
-        },
-
-        Flatten: function ()
-        {
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var middleEnumerator = null;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        while (true)
-                        {
-                            if (middleEnumerator != null)
-                            {
-                                if (middleEnumerator.MoveNext())
-                                {
-                                    return this.Yield(middleEnumerator.Current());
-                                }
-                                else
-                                {
-                                    middleEnumerator = null;
-                                }
-                            }
-
-                            if (enumerator.MoveNext())
-                            {
-                                if (enumerator.Current() instanceof Array)
-                                {
-                                    Utils.Dispose(middleEnumerator);
-                                    middleEnumerator = Enumerable.From(enumerator.Current())
-                                        .SelectMany(Functions.Identity)
-                                        .Flatten()
-                                        .GetEnumerator();
-                                    continue;
-                                }
-                                else
-                                {
-                                    return this.Yield(enumerator.Current());
-                                }
-                            }
-
-                            return false;
-                        }
-                    },
-                    function ()
-                    {
-                        try { Utils.Dispose(enumerator); }
-                        finally { Utils.Dispose(middleEnumerator); }
-                    });
-            });
-        },
-
-        Pairwise: function (selector)
-        {
-            var source = this;
-            selector = Utils.CreateLambda(selector);
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        enumerator = source.GetEnumerator();
-                        enumerator.MoveNext();
-                    },
-                    function ()
-                    {
-                        var prev = enumerator.Current();
-                        return (enumerator.MoveNext())
-                            ? this.Yield(selector(prev, enumerator.Current()))
-                            : false;
-                    },
-                    function () { Utils.Dispose(enumerator); });
-            });
-        },
-
-        // Overload:function(func)
-        // Overload:function(seed,func<value,element>)
-        // Overload:function(seed,func<value,element>,resultSelector)
-        Scan: function (seed, func, resultSelector)
-        {
-            if (resultSelector != null) return this.Scan(seed, func).Select(resultSelector);
-
-            var isUseSeed;
-            if (func == null)
-            {
-                func = Utils.CreateLambda(seed); // arguments[0]
-                isUseSeed = false;
-            }
-            else
-            {
-                func = Utils.CreateLambda(func);
-                isUseSeed = true;
-            }
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var value;
-                var isFirst = true;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        if (isFirst)
-                        {
-                            isFirst = false;
-                            if (!isUseSeed)
-                            {
-                                if (enumerator.MoveNext())
-                                {
-                                    return this.Yield(value = enumerator.Current());
-                                }
-                            }
-                            else
-                            {
-                                return this.Yield(value = seed);
-                            }
-                        }
-
-                        return (enumerator.MoveNext())
-                            ? this.Yield(value = func(value, enumerator.Current()))
-                            : false;
-                    },
-                    function () { Utils.Dispose(enumerator); });
-            });
-        },
-
-        // Overload:function(selector<element>)
-        // Overload:function(selector<element,index>)
-        Select: function (selector)
-        {
-            var source = this;
-            selector = Utils.CreateLambda(selector);
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var index = 0;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        return (enumerator.MoveNext())
-                            ? this.Yield(selector(enumerator.Current(), index++))
-                            : false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        // Overload:function(collectionSelector<element>)
-        // Overload:function(collectionSelector<element,index>)
-        // Overload:function(collectionSelector<element>,resultSelector)
-        // Overload:function(collectionSelector<element,index>,resultSelector)
-        SelectMany: function (collectionSelector, resultSelector)
-        {
-            var source = this;
-            collectionSelector = Utils.CreateLambda(collectionSelector);
-            if (resultSelector == null) resultSelector = function (a, b) { return b; }
-            resultSelector = Utils.CreateLambda(resultSelector);
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var middleEnumerator = undefined;
-                var index = 0;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        if (middleEnumerator === undefined)
-                        {
-                            if (!enumerator.MoveNext()) return false;
-                        }
-                        do
-                        {
-                            if (middleEnumerator == null)
-                            {
-                                var middleSeq = collectionSelector(enumerator.Current(), index++);
-                                middleEnumerator = Enumerable.From(middleSeq).GetEnumerator();
-                            }
-                            if (middleEnumerator.MoveNext())
-                            {
-                                return this.Yield(resultSelector(enumerator.Current(), middleEnumerator.Current()));
-                            }
-                            Utils.Dispose(middleEnumerator);
-                            middleEnumerator = null;
-                        } while (enumerator.MoveNext())
-                        return false;
-                    },
-                    function ()
-                    {
-                        try { Utils.Dispose(enumerator); }
-                        finally { Utils.Dispose(middleEnumerator); }
-                    })
-            });
-        },
-
-        // Overload:function(predicate<element>)
-        // Overload:function(predicate<element,index>)
-        Where: function (predicate)
-        {
-            predicate = Utils.CreateLambda(predicate);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var index = 0;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        while (enumerator.MoveNext())
-                        {
-                            if (predicate(enumerator.Current(), index++))
-                            {
-                                return this.Yield(enumerator.Current());
-                            }
-                        }
-                        return false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        OfType: function (type)
-        {
-            var typeName;
-            switch (type)
-            {
-                case Number: typeName = Types.Number; break;
-                case String: typeName = Types.String; break;
-                case Boolean: typeName = Types.Boolean; break;
-                case Function: typeName = Types.Function; break;
-                default: typeName = null; break;
-            }
-            return (typeName === null)
-                ? this.Where(function (x) { return x instanceof type })
-                : this.Where(function (x) { return typeof x === typeName });
-        },
-
-        // Overload:function(second,selector<outer,inner>)
-        // Overload:function(second,selector<outer,inner,index>)
-        Zip: function (second, selector)
-        {
-            selector = Utils.CreateLambda(selector);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var firstEnumerator;
-                var secondEnumerator;
-                var index = 0;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        firstEnumerator = source.GetEnumerator();
-                        secondEnumerator = Enumerable.From(second).GetEnumerator();
-                    },
-                    function ()
-                    {
-                        if (firstEnumerator.MoveNext() && secondEnumerator.MoveNext())
-                        {
-                            return this.Yield(selector(firstEnumerator.Current(), secondEnumerator.Current(), index++));
-                        }
-                        return false;
-                    },
-                    function ()
-                    {
-                        try { Utils.Dispose(firstEnumerator); }
-                        finally { Utils.Dispose(secondEnumerator); }
-                    })
-            });
-        },
-
-        /* Join Methods */
-
-        // Overload:function (inner, outerKeySelector, innerKeySelector, resultSelector)
-        // Overload:function (inner, outerKeySelector, innerKeySelector, resultSelector, compareSelector)
-        Join: function (inner, outerKeySelector, innerKeySelector, resultSelector, compareSelector)
-        {
-            outerKeySelector = Utils.CreateLambda(outerKeySelector);
-            innerKeySelector = Utils.CreateLambda(innerKeySelector);
-            resultSelector = Utils.CreateLambda(resultSelector);
-            compareSelector = Utils.CreateLambda(compareSelector);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var outerEnumerator;
-                var lookup;
-                var innerElements = null;
-                var innerCount = 0;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        outerEnumerator = source.GetEnumerator();
-                        lookup = Enumerable.From(inner).ToLookup(innerKeySelector, Functions.Identity, compareSelector);
-                    },
-                    function ()
-                    {
-                        while (true)
-                        {
-                            if (innerElements != null)
-                            {
-                                var innerElement = innerElements[innerCount++];
-                                if (innerElement !== undefined)
-                                {
-                                    return this.Yield(resultSelector(outerEnumerator.Current(), innerElement));
-                                }
-
-                                innerElement = null;
-                                innerCount = 0;
-                            }
-
-                            if (outerEnumerator.MoveNext())
-                            {
-                                var key = outerKeySelector(outerEnumerator.Current());
-                                innerElements = lookup.Get(key).ToArray();
-                            }
-                            else
-                            {
-                                return false;
-                            }
-                        }
-                    },
-                    function () { Utils.Dispose(outerEnumerator); })
-            });
-        },
-
-        // Overload:function (inner, outerKeySelector, innerKeySelector, resultSelector)
-        // Overload:function (inner, outerKeySelector, innerKeySelector, resultSelector, compareSelector)
-        GroupJoin: function (inner, outerKeySelector, innerKeySelector, resultSelector, compareSelector)
-        {
-            outerKeySelector = Utils.CreateLambda(outerKeySelector);
-            innerKeySelector = Utils.CreateLambda(innerKeySelector);
-            resultSelector = Utils.CreateLambda(resultSelector);
-            compareSelector = Utils.CreateLambda(compareSelector);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator = source.GetEnumerator();
-                var lookup = null;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        enumerator = source.GetEnumerator();
-                        lookup = Enumerable.From(inner).ToLookup(innerKeySelector, Functions.Identity, compareSelector);
-                    },
-                    function ()
-                    {
-                        if (enumerator.MoveNext())
-                        {
-                            var innerElement = lookup.Get(outerKeySelector(enumerator.Current()));
-                            return this.Yield(resultSelector(enumerator.Current(), innerElement));
-                        }
-                        return false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        /* Set Methods */
-
-        All: function (predicate)
-        {
-            predicate = Utils.CreateLambda(predicate);
-
-            var result = true;
-            this.ForEach(function (x)
-            {
-                if (!predicate(x))
-                {
-                    result = false;
-                    return false; // break
-                }
-            });
-            return result;
-        },
-
-        // Overload:function()
-        // Overload:function(predicate)
-        Any: function (predicate)
-        {
-            predicate = Utils.CreateLambda(predicate);
-
-            var enumerator = this.GetEnumerator();
-            try
-            {
-                if (arguments.length == 0) return enumerator.MoveNext(); // case:function()
-
-                while (enumerator.MoveNext()) // case:function(predicate)
-                {
-                    if (predicate(enumerator.Current())) return true;
-                }
-                return false;
-            }
-            finally { Utils.Dispose(enumerator); }
-        },
-
-        Concat: function (second)
-        {
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var firstEnumerator;
-                var secondEnumerator;
-
-                return new IEnumerator(
-                    function () { firstEnumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        if (secondEnumerator == null)
-                        {
-                            if (firstEnumerator.MoveNext()) return this.Yield(firstEnumerator.Current());
-                            secondEnumerator = Enumerable.From(second).GetEnumerator();
-                        }
-                        if (secondEnumerator.MoveNext()) return this.Yield(secondEnumerator.Current());
-                        return false;
-                    },
-                    function ()
-                    {
-                        try { Utils.Dispose(firstEnumerator); }
-                        finally { Utils.Dispose(secondEnumerator); }
-                    })
-            });
-        },
-
-        Insert: function (index, second)
-        {
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var firstEnumerator;
-                var secondEnumerator;
-                var count = 0;
-                var isEnumerated = false;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        firstEnumerator = source.GetEnumerator();
-                        secondEnumerator = Enumerable.From(second).GetEnumerator();
-                    },
-                    function ()
-                    {
-                        if (count == index && secondEnumerator.MoveNext())
-                        {
-                            isEnumerated = true;
-                            return this.Yield(secondEnumerator.Current());
-                        }
-                        if (firstEnumerator.MoveNext())
-                        {
-                            count++;
-                            return this.Yield(firstEnumerator.Current());
-                        }
-                        if (!isEnumerated && secondEnumerator.MoveNext())
-                        {
-                            return this.Yield(secondEnumerator.Current());
-                        }
-                        return false;
-                    },
-                    function ()
-                    {
-                        try { Utils.Dispose(firstEnumerator); }
-                        finally { Utils.Dispose(secondEnumerator); }
-                    })
-            });
-        },
-
-        Alternate: function (value)
-        {
-            value = Enumerable.Return(value);
-            return this.SelectMany(function (elem)
-            {
-                return Enumerable.Return(elem).Concat(value);
-            }).TakeExceptLast();
-        },
-
-        // Overload:function(value)
-        // Overload:function(value, compareSelector)
-        Contains: function (value, compareSelector)
-        {
-            compareSelector = Utils.CreateLambda(compareSelector);
-            var enumerator = this.GetEnumerator();
-            try
-            {
-                while (enumerator.MoveNext())
-                {
-                    if (compareSelector(enumerator.Current()) === value) return true;
-                }
-                return false;
-            }
-            finally { Utils.Dispose(enumerator) }
-        },
-
-        DefaultIfEmpty: function (defaultValue)
-        {
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var isFirst = true;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        if (enumerator.MoveNext())
-                        {
-                            isFirst = false;
-                            return this.Yield(enumerator.Current());
-                        }
-                        else if (isFirst)
-                        {
-                            isFirst = false;
-                            return this.Yield(defaultValue);
-                        }
-                        return false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        // Overload:function()
-        // Overload:function(compareSelector)
-        Distinct: function (compareSelector)
-        {
-            return this.Except(Enumerable.Empty(), compareSelector);
-        },
-
-        // Overload:function(second)
-        // Overload:function(second, compareSelector)
-        Except: function (second, compareSelector)
-        {
-            compareSelector = Utils.CreateLambda(compareSelector);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var keys;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        enumerator = source.GetEnumerator();
-                        keys = new Dictionary(compareSelector);
-                        Enumerable.From(second).ForEach(function (key) { keys.Add(key); });
-                    },
-                    function ()
-                    {
-                        while (enumerator.MoveNext())
-                        {
-                            var current = enumerator.Current();
-                            if (!keys.Contains(current))
-                            {
-                                keys.Add(current);
-                                return this.Yield(current);
-                            }
-                        }
-                        return false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        // Overload:function(second)
-        // Overload:function(second, compareSelector)
-        Intersect: function (second, compareSelector)
-        {
-            compareSelector = Utils.CreateLambda(compareSelector);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var keys;
-                var outs;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        enumerator = source.GetEnumerator();
-
-                        keys = new Dictionary(compareSelector);
-                        Enumerable.From(second).ForEach(function (key) { keys.Add(key); });
-                        outs = new Dictionary(compareSelector);
-                    },
-                    function ()
-                    {
-                        while (enumerator.MoveNext())
-                        {
-                            var current = enumerator.Current();
-                            if (!outs.Contains(current) && keys.Contains(current))
-                            {
-                                outs.Add(current);
-                                return this.Yield(current);
-                            }
-                        }
-                        return false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        // Overload:function(second)
-        // Overload:function(second, compareSelector)
-        SequenceEqual: function (second, compareSelector)
-        {
-            compareSelector = Utils.CreateLambda(compareSelector);
-
-            var firstEnumerator = this.GetEnumerator();
-            try
-            {
-                var secondEnumerator = Enumerable.From(second).GetEnumerator();
-                try
-                {
-                    while (firstEnumerator.MoveNext())
-                    {
-                        if (!secondEnumerator.MoveNext()
-                            || compareSelector(firstEnumerator.Current()) !== compareSelector(secondEnumerator.Current()))
-                        {
-                            return false;
-                        }
-                    }
-
-                    if (secondEnumerator.MoveNext()) return false;
-                    return true;
-                }
-                finally { Utils.Dispose(secondEnumerator); }
-            }
-            finally { Utils.Dispose(firstEnumerator); }
-        },
-
-        Union: function (second, compareSelector)
-        {
-            compareSelector = Utils.CreateLambda(compareSelector);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var firstEnumerator;
-                var secondEnumerator;
-                var keys;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        firstEnumerator = source.GetEnumerator();
-                        keys = new Dictionary(compareSelector);
-                    },
-                    function ()
-                    {
-                        var current;
-                        if (secondEnumerator === undefined)
-                        {
-                            while (firstEnumerator.MoveNext())
-                            {
-                                current = firstEnumerator.Current();
-                                if (!keys.Contains(current))
-                                {
-                                    keys.Add(current);
-                                    return this.Yield(current);
-                                }
-                            }
-                            secondEnumerator = Enumerable.From(second).GetEnumerator();
-                        }
-                        while (secondEnumerator.MoveNext())
-                        {
-                            current = secondEnumerator.Current();
-                            if (!keys.Contains(current))
-                            {
-                                keys.Add(current);
-                                return this.Yield(current);
-                            }
-                        }
-                        return false;
-                    },
-                    function ()
-                    {
-                        try { Utils.Dispose(firstEnumerator); }
-                        finally { Utils.Dispose(secondEnumerator); }
-                    })
-            });
-        },
-
-        /* Ordering Methods */
-
-        OrderBy: function (keySelector)
-        {
-            return new OrderedEnumerable(this, keySelector, false);
-        },
-
-        OrderByDescending: function (keySelector)
-        {
-            return new OrderedEnumerable(this, keySelector, true);
-        },
-
-        Reverse: function ()
-        {
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var buffer;
-                var index;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        buffer = source.ToArray();
-                        index = buffer.length;
-                    },
-                    function ()
-                    {
-                        return (index > 0)
-                            ? this.Yield(buffer[--index])
-                            : false;
-                    },
-                    Functions.Blank)
-            });
-        },
-
-        Shuffle: function ()
-        {
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var buffer;
-
-                return new IEnumerator(
-                    function () { buffer = source.ToArray(); },
-                    function ()
-                    {
-                        if (buffer.length > 0)
-                        {
-                            var i = Math.floor(Math.random() * buffer.length);
-                            return this.Yield(buffer.splice(i, 1)[0]);
-                        }
-                        return false;
-                    },
-                    Functions.Blank)
-            });
-        },
-
-        /* Grouping Methods */
-
-        // Overload:function(keySelector)
-        // Overload:function(keySelector,elementSelector)
-        // Overload:function(keySelector,elementSelector,resultSelector)
-        // Overload:function(keySelector,elementSelector,resultSelector,compareSelector)
-        GroupBy: function (keySelector, elementSelector, resultSelector, compareSelector)
-        {
-            var source = this;
-            keySelector = Utils.CreateLambda(keySelector);
-            elementSelector = Utils.CreateLambda(elementSelector);
-            if (resultSelector != null) resultSelector = Utils.CreateLambda(resultSelector);
-            compareSelector = Utils.CreateLambda(compareSelector);
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        enumerator = source.ToLookup(keySelector, elementSelector, compareSelector)
-                            .ToEnumerable()
-                            .GetEnumerator();
-                    },
-                    function ()
-                    {
-                        while (enumerator.MoveNext())
-                        {
-                            return (resultSelector == null)
-                                ? this.Yield(enumerator.Current())
-                                : this.Yield(resultSelector(enumerator.Current().Key(), enumerator.Current()));
-                        }
-                        return false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        // Overload:function(keySelector)
-        // Overload:function(keySelector,elementSelector)
-        // Overload:function(keySelector,elementSelector,resultSelector)
-        // Overload:function(keySelector,elementSelector,resultSelector,compareSelector)
-        PartitionBy: function (keySelector, elementSelector, resultSelector, compareSelector)
-        {
-
-            var source = this;
-            keySelector = Utils.CreateLambda(keySelector);
-            elementSelector = Utils.CreateLambda(elementSelector);
-            compareSelector = Utils.CreateLambda(compareSelector);
-            var hasResultSelector;
-            if (resultSelector == null)
-            {
-                hasResultSelector = false;
-                resultSelector = function (key, group) { return new Grouping(key, group) }
-            }
-            else
-            {
-                hasResultSelector = true;
-                resultSelector = Utils.CreateLambda(resultSelector);
-            }
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var key;
-                var compareKey;
-                var group = [];
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        enumerator = source.GetEnumerator();
-                        if (enumerator.MoveNext())
-                        {
-                            key = keySelector(enumerator.Current());
-                            compareKey = compareSelector(key);
-                            group.push(elementSelector(enumerator.Current()));
-                        }
-                    },
-                    function ()
-                    {
-                        var hasNext;
-                        while ((hasNext = enumerator.MoveNext()) == true)
-                        {
-                            if (compareKey === compareSelector(keySelector(enumerator.Current())))
-                            {
-                                group.push(elementSelector(enumerator.Current()));
-                            }
-                            else break;
-                        }
-
-                        if (group.length > 0)
-                        {
-                            var result = (hasResultSelector)
-                                ? resultSelector(key, Enumerable.From(group))
-                                : resultSelector(key, group);
-                            if (hasNext)
-                            {
-                                key = keySelector(enumerator.Current());
-                                compareKey = compareSelector(key);
-                                group = [elementSelector(enumerator.Current())];
-                            }
-                            else group = [];
-
-                            return this.Yield(result);
-                        }
-
-                        return false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        BufferWithCount: function (count)
-        {
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-
-                return new IEnumerator(
-                function () { enumerator = source.GetEnumerator(); },
-                function ()
-                {
-                    var array = [];
-                    var index = 0;
-                    while (enumerator.MoveNext())
-                    {
-                        array.push(enumerator.Current());
-                        if (++index >= count) return this.Yield(array);
-                    }
-                    if (array.length > 0) return this.Yield(array);
-                    return false;
-                },
-                function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        /* Aggregate Methods */
-
-        // Overload:function(func)
-        // Overload:function(seed,func)
-        // Overload:function(seed,func,resultSelector)
-        Aggregate: function (seed, func, resultSelector)
-        {
-            return this.Scan(seed, func, resultSelector).Last();
-        },
-
-        // Overload:function()
-        // Overload:function(selector)
-        Average: function (selector)
-        {
-            selector = Utils.CreateLambda(selector);
-
-            var sum = 0;
-            var count = 0;
-            this.ForEach(function (x)
-            {
-                sum += selector(x);
-                ++count;
-            });
-
-            return sum / count;
-        },
-
-        // Overload:function()
-        // Overload:function(predicate)
-        Count: function (predicate)
-        {
-            predicate = (predicate == null) ? Functions.True : Utils.CreateLambda(predicate);
-
-            var count = 0;
-            this.ForEach(function (x, i)
-            {
-                if (predicate(x, i)) ++count;
-            });
-            return count;
-        },
-
-        // Overload:function()
-        // Overload:function(selector)
-        Max: function (selector)
-        {
-            if (selector == null) selector = Functions.Identity;
-            return this.Select(selector).Aggregate(function (a, b) { return (a > b) ? a : b; });
-        },
-
-        // Overload:function()
-        // Overload:function(selector)
-        Min: function (selector)
-        {
-            if (selector == null) selector = Functions.Identity;
-            return this.Select(selector).Aggregate(function (a, b) { return (a < b) ? a : b; });
-        },
-
-        MaxBy: function (keySelector)
-        {
-            keySelector = Utils.CreateLambda(keySelector);
-            return this.Aggregate(function (a, b) { return (keySelector(a) > keySelector(b)) ? a : b });
-        },
-
-        MinBy: function (keySelector)
-        {
-            keySelector = Utils.CreateLambda(keySelector);
-            return this.Aggregate(function (a, b) { return (keySelector(a) < keySelector(b)) ? a : b });
-        },
-
-        // Overload:function()
-        // Overload:function(selector)
-        Sum: function (selector)
-        {
-            if (selector == null) selector = Functions.Identity;
-            return this.Select(selector).Aggregate(0, function (a, b) { return a + b; });
-        },
-
-        /* Paging Methods */
-
-        ElementAt: function (index)
-        {
-            var value;
-            var found = false;
-            this.ForEach(function (x, i)
-            {
-                if (i == index)
-                {
-                    value = x;
-                    found = true;
-                    return false;
-                }
-            });
-
-            if (!found) throw new Error("index is less than 0 or greater than or equal to the number of elements in source.");
-            return value;
-        },
-
-        ElementAtOrDefault: function (index, defaultValue)
-        {
-            var value;
-            var found = false;
-            this.ForEach(function (x, i)
-            {
-                if (i == index)
-                {
-                    value = x;
-                    found = true;
-                    return false;
-                }
-            });
-
-            return (!found) ? defaultValue : value;
-        },
-
-        // Overload:function()
-        // Overload:function(predicate)
-        First: function (predicate)
-        {
-            if (predicate != null) return this.Where(predicate).First();
-
-            var value;
-            var found = false;
-            this.ForEach(function (x)
-            {
-                value = x;
-                found = true;
-                return false;
-            });
-
-            if (!found) throw new Error("First:No element satisfies the condition.");
-            return value;
-        },
-
-        // Overload:function(defaultValue)
-        // Overload:function(defaultValue,predicate)
-        FirstOrDefault: function (defaultValue, predicate)
-        {
-            if (predicate != null) return this.Where(predicate).FirstOrDefault(defaultValue);
-
-            var value;
-            var found = false;
-            this.ForEach(function (x)
-            {
-                value = x;
-                found = true;
-                return false;
-            });
-            return (!found) ? defaultValue : value;
-        },
-
-        // Overload:function()
-        // Overload:function(predicate)
-        Last: function (predicate)
-        {
-            if (predicate != null) return this.Where(predicate).Last();
-
-            var value;
-            var found = false;
-            this.ForEach(function (x)
-            {
-                found = true;
-                value = x;
-            });
-
-            if (!found) throw new Error("Last:No element satisfies the condition.");
-            return value;
-        },
-
-        // Overload:function(defaultValue)
-        // Overload:function(defaultValue,predicate)
-        LastOrDefault: function (defaultValue, predicate)
-        {
-            if (predicate != null) return this.Where(predicate).LastOrDefault(defaultValue);
-
-            var value;
-            var found = false;
-            this.ForEach(function (x)
-            {
-                found = true;
-                value = x;
-            });
-            return (!found) ? defaultValue : value;
-        },
-
-        // Overload:function()
-        // Overload:function(predicate)
-        Single: function (predicate)
-        {
-            if (predicate != null) return this.Where(predicate).Single();
-
-            var value;
-            var found = false;
-            this.ForEach(function (x)
-            {
-                if (!found)
-                {
-                    found = true;
-                    value = x;
-                }
-                else throw new Error("Single:sequence contains more than one element.");
-            });
-
-            if (!found) throw new Error("Single:No element satisfies the condition.");
-            return value;
-        },
-
-        // Overload:function(defaultValue)
-        // Overload:function(defaultValue,predicate)
-        SingleOrDefault: function (defaultValue, predicate)
-        {
-            if (predicate != null) return this.Where(predicate).SingleOrDefault(defaultValue);
-
-            var value;
-            var found = false;
-            this.ForEach(function (x)
-            {
-                if (!found)
-                {
-                    found = true;
-                    value = x;
-                }
-                else throw new Error("Single:sequence contains more than one element.");
-            });
-
-            return (!found) ? defaultValue : value;
-        },
-
-        Skip: function (count)
-        {
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var index = 0;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        enumerator = source.GetEnumerator();
-                        while (index++ < count && enumerator.MoveNext()) { };
-                    },
-                    function ()
-                    {
-                        return (enumerator.MoveNext())
-                            ? this.Yield(enumerator.Current())
-                            : false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        // Overload:function(predicate<element>)
-        // Overload:function(predicate<element,index>)
-        SkipWhile: function (predicate)
-        {
-            predicate = Utils.CreateLambda(predicate);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var index = 0;
-                var isSkipEnd = false;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        while (!isSkipEnd)
-                        {
-                            if (enumerator.MoveNext())
-                            {
-                                if (!predicate(enumerator.Current(), index++))
-                                {
-                                    isSkipEnd = true;
-                                    return this.Yield(enumerator.Current());
-                                }
-                                continue;
-                            }
-                            else return false;
-                        }
-
-                        return (enumerator.MoveNext())
-                            ? this.Yield(enumerator.Current())
-                            : false;
-
-                    },
-                    function () { Utils.Dispose(enumerator); });
-            });
-        },
-
-        Take: function (count)
-        {
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var index = 0;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        return (index++ < count && enumerator.MoveNext())
-                            ? this.Yield(enumerator.Current())
-                            : false;
-                    },
-                    function () { Utils.Dispose(enumerator); }
-                )
-            });
-        },
-
-        // Overload:function(predicate<element>)
-        // Overload:function(predicate<element,index>)
-        TakeWhile: function (predicate)
-        {
-            predicate = Utils.CreateLambda(predicate);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var index = 0;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        return (enumerator.MoveNext() && predicate(enumerator.Current(), index++))
-                            ? this.Yield(enumerator.Current())
-                            : false;
-                    },
-                    function () { Utils.Dispose(enumerator); });
-            });
-        },
-
-        // Overload:function()
-        // Overload:function(count)
-        TakeExceptLast: function (count)
-        {
-            if (count == null) count = 1;
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                if (count <= 0) return source.GetEnumerator(); // do nothing
-
-                var enumerator;
-                var q = [];
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        while (enumerator.MoveNext())
-                        {
-                            if (q.length == count)
-                            {
-                                q.push(enumerator.Current());
-                                return this.Yield(q.shift());
-                            }
-                            q.push(enumerator.Current());
-                        }
-                        return false;
-                    },
-                    function () { Utils.Dispose(enumerator); });
-            });
-        },
-
-        TakeFromLast: function (count)
-        {
-            if (count <= 0 || count == null) return Enumerable.Empty();
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var sourceEnumerator;
-                var enumerator;
-                var q = [];
-
-                return new IEnumerator(
-                    function () { sourceEnumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        while (sourceEnumerator.MoveNext())
-                        {
-                            if (q.length == count) q.shift()
-                            q.push(sourceEnumerator.Current());
-                        }
-                        if (enumerator == null)
-                        {
-                            enumerator = Enumerable.From(q).GetEnumerator();
-                        }
-                        return (enumerator.MoveNext())
-                            ? this.Yield(enumerator.Current())
-                            : false;
-                    },
-                    function () { Utils.Dispose(enumerator); });
-            });
-        },
-
-        IndexOf: function (item)
-        {
-            var found = null;
-            this.ForEach(function (x, i)
-            {
-                if (x === item)
-                {
-                    found = i;
-                    return true;
-                }
-            });
-
-            return (found !== null) ? found : -1;
-        },
-
-        LastIndexOf: function (item)
-        {
-            var result = -1;
-            this.ForEach(function (x, i)
-            {
-                if (x === item) result = i;
-            });
-
-            return result;
-        },
-
-        /* Convert Methods */
-
-        ToArray: function ()
-        {
-            var array = [];
-            this.ForEach(function (x) { array.push(x) });
-            return array;
-        },
-
-        // Overload:function(keySelector)
-        // Overload:function(keySelector, elementSelector)
-        // Overload:function(keySelector, elementSelector, compareSelector)
-        ToLookup: function (keySelector, elementSelector, compareSelector)
-        {
-            keySelector = Utils.CreateLambda(keySelector);
-            elementSelector = Utils.CreateLambda(elementSelector);
-            compareSelector = Utils.CreateLambda(compareSelector);
-
-            var dict = new Dictionary(compareSelector);
-            this.ForEach(function (x)
-            {
-                var key = keySelector(x);
-                var element = elementSelector(x);
-
-                var array = dict.Get(key);
-                if (array !== undefined) array.push(element);
-                else dict.Add(key, [element]);
-            });
-            return new Lookup(dict);
-        },
-
-        ToObject: function (keySelector, elementSelector)
-        {
-            keySelector = Utils.CreateLambda(keySelector);
-            elementSelector = Utils.CreateLambda(elementSelector);
-
-            var obj = {};
-            this.ForEach(function (x)
-            {
-                obj[keySelector(x)] = elementSelector(x);
-            });
-            return obj;
-        },
-
-        // Overload:function(keySelector, elementSelector)
-        // Overload:function(keySelector, elementSelector, compareSelector)
-        ToDictionary: function (keySelector, elementSelector, compareSelector)
-        {
-            keySelector = Utils.CreateLambda(keySelector);
-            elementSelector = Utils.CreateLambda(elementSelector);
-            compareSelector = Utils.CreateLambda(compareSelector);
-
-            var dict = new Dictionary(compareSelector);
-            this.ForEach(function (x)
-            {
-                dict.Add(keySelector(x), elementSelector(x));
-            });
-            return dict;
-        },
-
-        // Overload:function()
-        // Overload:function(replacer)
-        // Overload:function(replacer, space)
-        ToJSON: function (replacer, space)
-        {
-            return JSON.stringify(this.ToArray(), replacer, space);
-        },
-
-        // Overload:function()
-        // Overload:function(separator)
-        // Overload:function(separator,selector)
-        ToString: function (separator, selector)
-        {
-            if (separator == null) separator = "";
-            if (selector == null) selector = Functions.Identity;
-
-            return this.Select(selector).ToArray().join(separator);
-        },
-
-
-        /* Action Methods */
-
-        // Overload:function(action<element>)
-        // Overload:function(action<element,index>)
-        Do: function (action)
-        {
-            var source = this;
-            action = Utils.CreateLambda(action);
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-                var index = 0;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        if (enumerator.MoveNext())
-                        {
-                            action(enumerator.Current(), index++);
-                            return this.Yield(enumerator.Current());
-                        }
-                        return false;
-                    },
-                    function () { Utils.Dispose(enumerator); });
-            });
-        },
-
-        // Overload:function(action<element>)
-        // Overload:function(action<element,index>)
-        // Overload:function(func<element,bool>)
-        // Overload:function(func<element,index,bool>)
-        ForEach: function (action)
-        {
-            action = Utils.CreateLambda(action);
-
-            var index = 0;
-            var enumerator = this.GetEnumerator();
-            try
-            {
-                while (enumerator.MoveNext())
-                {
-                    if (action(enumerator.Current(), index++) === false) break;
-                }
-            }
-            finally { Utils.Dispose(enumerator); }
-        },
-
-        // Overload:function()
-        // Overload:function(separator)
-        // Overload:function(separator,selector)
-        Write: function (separator, selector)
-        {
-            if (separator == null) separator = "";
-            selector = Utils.CreateLambda(selector);
-
-            var isFirst = true;
-            this.ForEach(function (item)
-            {
-                if (isFirst) isFirst = false;
-                else document.write(separator);
-                document.write(selector(item));
-            });
-        },
-
-        // Overload:function()
-        // Overload:function(selector)
-        WriteLine: function (selector)
-        {
-            selector = Utils.CreateLambda(selector);
-
-            this.ForEach(function (item)
-            {
-                document.write(selector(item));
-                document.write("<br />");
-            });
-        },
-
-        Force: function ()
-        {
-            var enumerator = this.GetEnumerator();
-
-            try { while (enumerator.MoveNext()) { } }
-            finally { Utils.Dispose(enumerator); }
-        },
-
-        /* Functional Methods */
-
-        Let: function (func)
-        {
-            func = Utils.CreateLambda(func);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        enumerator = Enumerable.From(func(source)).GetEnumerator();
-                    },
-                    function ()
-                    {
-                        return (enumerator.MoveNext())
-                            ? this.Yield(enumerator.Current())
-                            : false;
-                    },
-                    function () { Utils.Dispose(enumerator); })
-            });
-        },
-
-        Share: function ()
-        {
-            var source = this;
-            var sharedEnumerator;
-
-            return new Enumerable(function ()
-            {
-                return new IEnumerator(
-                    function ()
-                    {
-                        if (sharedEnumerator == null)
-                        {
-                            sharedEnumerator = source.GetEnumerator();
-                        }
-                    },
-                    function ()
-                    {
-                        return (sharedEnumerator.MoveNext())
-                            ? this.Yield(sharedEnumerator.Current())
-                            : false;
-                    },
-                    Functions.Blank
-                )
-            });
-        },
-
-        MemoizeAll: function ()
-        {
-            var source = this;
-            var cache;
-            var enumerator;
-
-            return new Enumerable(function ()
-            {
-                var index = -1;
-
-                return new IEnumerator(
-                    function ()
-                    {
-                        if (enumerator == null)
-                        {
-                            enumerator = source.GetEnumerator();
-                            cache = [];
-                        }
-                    },
-                    function ()
-                    {
-                        index++;
-                        if (cache.length <= index)
-                        {
-                            return (enumerator.MoveNext())
-                                ? this.Yield(cache[index] = enumerator.Current())
-                                : false;
-                        }
-
-                        return this.Yield(cache[index]);
-                    },
-                    Functions.Blank
-                )
-            });
-        },
-
-        /* Error Handling Methods */
-
-        Catch: function (handler)
-        {
-            handler = Utils.CreateLambda(handler);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        try
-                        {
-                            return (enumerator.MoveNext())
-                               ? this.Yield(enumerator.Current())
-                               : false;
-                        }
-                        catch (e)
-                        {
-                            handler(e);
-                            return false;
-                        }
-                    },
-                    function () { Utils.Dispose(enumerator); });
-            });
-        },
-
-        Finally: function (finallyAction)
-        {
-            finallyAction = Utils.CreateLambda(finallyAction);
-            var source = this;
-
-            return new Enumerable(function ()
-            {
-                var enumerator;
-
-                return new IEnumerator(
-                    function () { enumerator = source.GetEnumerator(); },
-                    function ()
-                    {
-                        return (enumerator.MoveNext())
-                           ? this.Yield(enumerator.Current())
-                           : false;
-                    },
-                    function ()
-                    {
-                        try { Utils.Dispose(enumerator); }
-                        finally { finallyAction(); }
-                    });
-            });
-        },
-
-        /* For Debug Methods */
-
-        // Overload:function()
-        // Overload:function(message)
-        // Overload:function(message,selector)
-        Trace: function (message, selector)
-        {
-            if (message == null) message = "Trace";
-            selector = Utils.CreateLambda(selector);
-
-            return this.Do(function (item)
-            {
-                console.log(message, ":", selector(item));
-            });
-        }
-    }
-
-    // private
-
-    // static functions
-    var Functions =
-    {
-        Identity: function (x) { return x; },
-        True: function () { return true; },
-        Blank: function () { }
-    }
-
-    // static const
-    var Types =
-    {
-        Boolean: typeof true,
-        Number: typeof 0,
-        String: typeof "",
-        Object: typeof {},
-        Undefined: typeof undefined,
-        Function: typeof function () { }
-    }
-
-    // static utility methods
-    var Utils =
-    {
-        // Create anonymous function from lambda expression string
-        CreateLambda: function (expression)
-        {
-            if (expression == null) return Functions.Identity;
-            if (typeof expression == Types.String)
-            {
-                if (expression == "")
-                {
-                    return Functions.Identity;
-                }
-                else if (expression.indexOf("=>") == -1)
-                {
-                    return new Function("$,$$,$$$,$$$$", "return " + expression);
-                }
-                else
-                {
-                    var expr = expression.match(/^[(\s]*([^()]*?)[)\s]*=>(.*)/);
-                    return new Function(expr[1], "return " + expr[2]);
-                }
-            }
-            return expression;
-        },
-
-        IsIEnumerable: function (obj)
-        {
-            if (typeof Enumerator != Types.Undefined)
-            {
-                try
-                {
-                    new Enumerator(obj);
-                    return true;
-                }
-                catch (e) { }
-            }
-            return false;
-        },
-
-        Compare: function (a, b)
-        {
-            return (a === b) ? 0
-                : (a > b) ? 1
-                : -1;
-        },
-
-        Dispose: function (obj)
-        {
-            if (obj != null) obj.Dispose();
-        }
-    }
-
-    // IEnumerator State
-    var State = { Before: 0, Running: 1, After: 2 }
-
-    // name "Enumerator" is conflict JScript's "Enumerator"
-    var IEnumerator = function (initialize, tryGetNext, dispose)
-    {
-        var yielder = new Yielder();
-        var state = State.Before;
-
-        this.Current = yielder.Current;
-        this.MoveNext = function ()
-        {
-            try
-            {
-                switch (state)
-                {
-                    case State.Before:
-                        state = State.Running;
-                        initialize(); // fall through
-                    case State.Running:
-                        if (tryGetNext.apply(yielder))
-                        {
-                            return true;
-                        }
-                        else
-                        {
-                            this.Dispose();
-                            return false;
-                        }
-                    case State.After:
-                        return false;
-                }
-            }
-            catch (e)
-            {
-                this.Dispose();
-                throw e;
-            }
-        }
-        this.Dispose = function ()
-        {
-            if (state != State.Running) return;
-
-            try { dispose(); }
-            finally { state = State.After; }
-        }
-    }
-
-    // for tryGetNext
-    var Yielder = function ()
-    {
-        var current = null;
-        this.Current = function () { return current; }
-        this.Yield = function (value)
-        {
-            current = value;
-            return true;
-        }
-    }
-
-    // for OrderBy/ThenBy
-
-    var OrderedEnumerable = function (source, keySelector, descending, parent)
-    {
-        this.source = source;
-        this.keySelector = Utils.CreateLambda(keySelector);
-        this.descending = descending;
-        this.parent = parent;
-    }
-    OrderedEnumerable.prototype = new Enumerable();
-
-    OrderedEnumerable.prototype.CreateOrderedEnumerable = function (keySelector, descending)
-    {
-        return new OrderedEnumerable(this.source, keySelector, descending, this);
-    }
-
-    OrderedEnumerable.prototype.ThenBy = function (keySelector)
-    {
-        return this.CreateOrderedEnumerable(keySelector, false);
-    }
-
-    OrderedEnumerable.prototype.ThenByDescending = function (keySelector)
-    {
-        return this.CreateOrderedEnumerable(keySelector, true);
-    }
-
-    OrderedEnumerable.prototype.GetEnumerator = function ()
-    {
-        var self = this;
-        var buffer;
-        var indexes;
-        var index = 0;
-
-        return new IEnumerator(
-            function ()
-            {
-                buffer = [];
-                indexes = [];
-                self.source.ForEach(function (item, index)
-                {
-                    buffer.push(item);
-                    indexes.push(index);
-                });
-                var sortContext = SortContext.Create(self, null);
-                sortContext.GenerateKeys(buffer);
-
-                indexes.sort(function (a, b) { return sortContext.Compare(a, b); });
-            },
-            function ()
-            {
-                return (index < indexes.length)
-                    ? this.Yield(buffer[indexes[index++]])
-                    : false;
-            },
-            Functions.Blank
-        )
-    }
-
-    var SortContext = function (keySelector, descending, child)
-    {
-        this.keySelector = keySelector;
-        this.descending = descending;
-        this.child = child;
-        this.keys = null;
-    }
-
-    SortContext.Create = function (orderedEnumerable, currentContext)
-    {
-        var context = new SortContext(orderedEnumerable.keySelector, orderedEnumerable.descending, currentContext);
-        if (orderedEnumerable.parent != null) return SortContext.Create(orderedEnumerable.parent, context);
-        return context;
-    }
-
-    SortContext.prototype.GenerateKeys = function (source)
-    {
-        var len = source.length;
-        var keySelector = this.keySelector;
-        var keys = new Array(len);
-        for (var i = 0; i < len; i++) keys[i] = keySelector(source[i]);
-        this.keys = keys;
-
-        if (this.child != null) this.child.GenerateKeys(source);
-    }
-
-    SortContext.prototype.Compare = function (index1, index2)
-    {
-        var comparison = Utils.Compare(this.keys[index1], this.keys[index2]);
-
-        if (comparison == 0)
-        {
-            if (this.child != null) return this.child.Compare(index1, index2)
-            comparison = Utils.Compare(index1, index2);
-        }
-
-        return (this.descending) ? -comparison : comparison;
-    }
-
-    // optimize array or arraylike object
-
-    var ArrayEnumerable = function (source)
-    {
-        this.source = source;
-    }
-    ArrayEnumerable.prototype = new Enumerable();
-
-    ArrayEnumerable.prototype.Any = function (predicate)
-    {
-        return (predicate == null)
-            ? (this.source.length > 0)
-            : Enumerable.prototype.Any.apply(this, arguments);
-    }
-
-    ArrayEnumerable.prototype.Count = function (predicate)
-    {
-        return (predicate == null)
-            ? this.source.length
-            : Enumerable.prototype.Count.apply(this, arguments);
-    }
-
-    ArrayEnumerable.prototype.ElementAt = function (index)
-    {
-        return (0 <= index && index < this.source.length)
-            ? this.source[index]
-            : Enumerable.prototype.ElementAt.apply(this, arguments);
-    }
-
-    ArrayEnumerable.prototype.ElementAtOrDefault = function (index, defaultValue)
-    {
-        return (0 <= index && index < this.source.length)
-            ? this.source[index]
-            : defaultValue;
-    }
-
-    ArrayEnumerable.prototype.First = function (predicate)
-    {
-        return (predicate == null && this.source.length > 0)
-            ? this.source[0]
-            : Enumerable.prototype.First.apply(this, arguments);
-    }
-
-    ArrayEnumerable.prototype.FirstOrDefault = function (defaultValue, predicate)
-    {
-        if (predicate != null)
-        {
-            return Enumerable.prototype.FirstOrDefault.apply(this, arguments);
-        }
-
-        return this.source.length > 0 ? this.source[0] : defaultValue;
-    }
-
-    ArrayEnumerable.prototype.Last = function (predicate)
-    {
-        return (predicate == null && this.source.length > 0)
-            ? this.source[this.source.length - 1]
-            : Enumerable.prototype.Last.apply(this, arguments);
-    }
-
-    ArrayEnumerable.prototype.LastOrDefault = function (defaultValue, predicate)
-    {
-        if (predicate != null)
-        {
-            return Enumerable.prototype.LastOrDefault.apply(this, arguments);
-        }
-
-        return this.source.length > 0 ? this.source[this.source.length - 1] : defaultValue;
-    }
-
-    ArrayEnumerable.prototype.Skip = function (count)
-    {
-        var source = this.source;
-
-        return new Enumerable(function ()
-        {
-            var index;
-
-            return new IEnumerator(
-                function () { index = (count < 0) ? 0 : count },
-                function ()
-                {
-                    return (index < source.length)
-                        ? this.Yield(source[index++])
-                        : false;
-                },
-                Functions.Blank);
-        });
-    };
-
-    ArrayEnumerable.prototype.TakeExceptLast = function (count)
-    {
-        if (count == null) count = 1;
-        return this.Take(this.source.length - count);
-    }
-
-    ArrayEnumerable.prototype.TakeFromLast = function (count)
-    {
-        return this.Skip(this.source.length - count);
-    }
-
-    ArrayEnumerable.prototype.Reverse = function ()
-    {
-        var source = this.source;
-
-        return new Enumerable(function ()
-        {
-            var index;
-
-            return new IEnumerator(
-                function ()
-                {
-                    index = source.length;
-                },
-                function ()
-                {
-                    return (index > 0)
-                        ? this.Yield(source[--index])
-                        : false;
-                },
-                Functions.Blank)
-        });
-    }
-
-    ArrayEnumerable.prototype.SequenceEqual = function (second, compareSelector)
-    {
-        if ((second instanceof ArrayEnumerable || second instanceof Array)
-            && compareSelector == null
-            && Enumerable.From(second).Count() != this.Count())
-        {
-            return false;
-        }
-
-        return Enumerable.prototype.SequenceEqual.apply(this, arguments);
-    }
-
-    ArrayEnumerable.prototype.ToString = function (separator, selector)
-    {
-        if (selector != null || !(this.source instanceof Array))
-        {
-            return Enumerable.prototype.ToString.apply(this, arguments);
-        }
-
-        if (separator == null) separator = "";
-        return this.source.join(separator);
-    }
-
-    ArrayEnumerable.prototype.GetEnumerator = function ()
-    {
-        var source = this.source;
-        var index = 0;
-
-        return new IEnumerator(
-            Functions.Blank,
-            function ()
-            {
-                return (index < source.length)
-                    ? this.Yield(source[index++])
-                    : false;
-            },
-            Functions.Blank);
-    }
-
-    // Collections
-
-    var Dictionary = (function ()
-    {
-        // static utility methods
-        var HasOwnProperty = function (target, key)
-        {
-            return Object.prototype.hasOwnProperty.call(target, key);
-        }
-
-        var ComputeHashCode = function (obj)
-        {
-            if (obj === null) return "null";
-            if (obj === undefined) return "undefined";
-
-            return (typeof obj.toString === Types.Function)
-                ? obj.toString()
-                : Object.prototype.toString.call(obj);
-        }
-
-        // LinkedList for Dictionary
-        var HashEntry = function (key, value)
-        {
-            this.Key = key;
-            this.Value = value;
-            this.Prev = null;
-            this.Next = null;
-        }
-
-        var EntryList = function ()
-        {
-            this.First = null;
-            this.Last = null;
-        }
-        EntryList.prototype =
-        {
-            AddLast: function (entry)
-            {
-                if (this.Last != null)
-                {
-                    this.Last.Next = entry;
-                    entry.Prev = this.Last;
-                    this.Last = entry;
-                }
-                else this.First = this.Last = entry;
-            },
-
-            Replace: function (entry, newEntry)
-            {
-                if (entry.Prev != null)
-                {
-                    entry.Prev.Next = newEntry;
-                    newEntry.Prev = entry.Prev;
-                }
-                else this.First = newEntry;
-
-                if (entry.Next != null)
-                {
-                    entry.Next.Prev = newEntry;
-                    newEntry.Next = entry.Next;
-                }
-                else this.Last = newEntry;
-
-            },
-
-            Remove: function (entry)
-            {
-                if (entry.Prev != null) entry.Prev.Next = entry.Next;
-                else this.First = entry.Next;
-
-                if (entry.Next != null) entry.Next.Prev = entry.Prev;
-                else this.Last = entry.Prev;
-            }
-        }
-
-        // Overload:function()
-        // Overload:function(compareSelector)
-        var Dictionary = function (compareSelector)
-        {
-            this.count = 0;
-            this.entryList = new EntryList();
-            this.buckets = {}; // as Dictionary<string,List<object>>
-            this.compareSelector = (compareSelector == null) ? Functions.Identity : compareSelector;
-        }
-
-        Dictionary.prototype =
-        {
-            Add: function (key, value)
-            {
-                var compareKey = this.compareSelector(key);
-                var hash = ComputeHashCode(compareKey);
-                var entry = new HashEntry(key, value);
-                if (HasOwnProperty(this.buckets, hash))
-                {
-                    var array = this.buckets[hash];
-                    for (var i = 0; i < array.length; i++)
-                    {
-                        if (this.compareSelector(array[i].Key) === compareKey)
-                        {
-                            this.entryList.Replace(array[i], entry);
-                            array[i] = entry;
-                            return;
-                        }
-                    }
-                    array.push(entry);
-                }
-                else
-                {
-                    this.buckets[hash] = [entry];
-                }
-                this.count++;
-                this.entryList.AddLast(entry);
-            },
-
-            Get: function (key)
-            {
-                var compareKey = this.compareSelector(key);
-                var hash = ComputeHashCode(compareKey);
-                if (!HasOwnProperty(this.buckets, hash)) return undefined;
-
-                var array = this.buckets[hash];
-                for (var i = 0; i < array.length; i++)
-                {
-                    var entry = array[i];
-                    if (this.compareSelector(entry.Key) === compareKey) return entry.Value;
-                }
-                return undefined;
-            },
-
-            Set: function (key, value)
-            {
-                var compareKey = this.compareSelector(key);
-                var hash = ComputeHashCode(compareKey);
-                if (HasOwnProperty(this.buckets, hash))
-                {
-                    var array = this.buckets[hash];
-                    for (var i = 0; i < array.length; i++)
-                    {
-                        if (this.compareSelector(array[i].Key) === compareKey)
-                        {
-                            var newEntry = new HashEntry(key, value);
-                            this.entryList.Replace(array[i], newEntry);
-                            array[i] = newEntry;
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            },
-
-            Contains: function (key)
-            {
-                var compareKey = this.compareSelector(key);
-                var hash = ComputeHashCode(compareKey);
-                if (!HasOwnProperty(this.buckets, hash)) return false;
-
-                var array = this.buckets[hash];
-                for (var i = 0; i < array.length; i++)
-                {
-                    if (this.compareSelector(array[i].Key) === compareKey) return true;
-                }
-                return false;
-            },
-
-            Clear: function ()
-            {
-                this.count = 0;
-                this.buckets = {};
-                this.entryList = new EntryList();
-            },
-
-            Remove: function (key)
-            {
-                var compareKey = this.compareSelector(key);
-                var hash = ComputeHashCode(compareKey);
-                if (!HasOwnProperty(this.buckets, hash)) return;
-
-                var array = this.buckets[hash];
-                for (var i = 0; i < array.length; i++)
-                {
-                    if (this.compareSelector(array[i].Key) === compareKey)
-                    {
-                        this.entryList.Remove(array[i]);
-                        array.splice(i, 1);
-                        if (array.length == 0) delete this.buckets[hash];
-                        this.count--;
-                        return;
-                    }
-                }
-            },
-
-            Count: function ()
-            {
-                return this.count;
-            },
-
-            ToEnumerable: function ()
-            {
-                var self = this;
-                return new Enumerable(function ()
-                {
-                    var currentEntry;
-
-                    return new IEnumerator(
-                        function () { currentEntry = self.entryList.First },
-                        function ()
-                        {
-                            if (currentEntry != null)
-                            {
-                                var result = { Key: currentEntry.Key, Value: currentEntry.Value };
-                                currentEntry = currentEntry.Next;
-                                return this.Yield(result);
-                            }
-                            return false;
-                        },
-                        Functions.Blank);
-                });
-            }
-        }
-
-        return Dictionary;
-    })();
-
-    // dictionary = Dictionary<TKey, TValue[]>
-    var Lookup = function (dictionary)
-    {
-        this.Count = function ()
-        {
-            return dictionary.Count();
-        }
-
-        this.Get = function (key)
-        {
-            return Enumerable.From(dictionary.Get(key));
-        }
-
-        this.Contains = function (key)
-        {
-            return dictionary.Contains(key);
-        }
-
-        this.ToEnumerable = function ()
-        {
-            return dictionary.ToEnumerable().Select(function (kvp)
-            {
-                return new Grouping(kvp.Key, kvp.Value);
-            });
-        }
-    }
-
-    var Grouping = function (key, elements)
-    {
-        this.Key = function ()
-        {
-            return key;
-        }
-
-        ArrayEnumerable.call(this, elements);
-    }
-    Grouping.prototype = new ArrayEnumerable();
-
-    // out to global
-    return Enumerable;
+		var Enumerable = function (getEnumerator)
+		{
+				this.GetEnumerator = getEnumerator;
+		}
+
+		// Generator
+
+		Enumerable.Choice = function () // variable argument
+		{
+				var args = (arguments[0] instanceof Array) ? arguments[0] : arguments;
+
+				return new Enumerable(function ()
+				{
+						return new IEnumerator(
+								Functions.Blank,
+								function ()
+								{
+										return this.Yield(args[Math.floor(Math.random() * args.length)]);
+								},
+								Functions.Blank);
+				});
+		}
+
+		Enumerable.Cycle = function () // variable argument
+		{
+				var args = (arguments[0] instanceof Array) ? arguments[0] : arguments;
+
+				return new Enumerable(function ()
+				{
+						var index = 0;
+						return new IEnumerator(
+								Functions.Blank,
+								function ()
+								{
+										if (index >= args.length) index = 0;
+										return this.Yield(args[index++]);
+								},
+								Functions.Blank);
+				});
+		}
+
+		Enumerable.Empty = function ()
+		{
+				return new Enumerable(function ()
+				{
+						return new IEnumerator(
+								Functions.Blank,
+								function () { return false; },
+								Functions.Blank);
+				});
+		}
+
+		Enumerable.From = function (obj)
+		{
+				if (obj == null)
+				{
+						return Enumerable.Empty();
+				}
+				if (obj instanceof Enumerable)
+				{
+						return obj;
+				}
+				if (typeof obj == Types.Number || typeof obj == Types.Boolean)
+				{
+						return Enumerable.Repeat(obj, 1);
+				}
+				if (typeof obj == Types.String)
+				{
+						return new Enumerable(function ()
+						{
+								var index = 0;
+								return new IEnumerator(
+										Functions.Blank,
+										function ()
+										{
+												return (index < obj.length) ? this.Yield(obj.charAt(index++)) : false;
+										},
+										Functions.Blank);
+						});
+				}
+				if (typeof obj != Types.Function)
+				{
+						// array or array like object
+						if (typeof obj.length == Types.Number)
+						{
+								return new ArrayEnumerable(obj);
+						}
+
+						// JScript's IEnumerable
+						if (!(obj instanceof Object) && Utils.IsIEnumerable(obj))
+						{
+								return new Enumerable(function ()
+								{
+										var isFirst = true;
+										var enumerator;
+										return new IEnumerator(
+												function () { enumerator = new Enumerator(obj); },
+												function ()
+												{
+														if (isFirst) isFirst = false;
+														else enumerator.moveNext();
+
+														return (enumerator.atEnd()) ? false : this.Yield(enumerator.item());
+												},
+												Functions.Blank);
+								});
+						}
+				}
+
+				// case function/object : Create KeyValuePair[]
+				return new Enumerable(function ()
+				{
+						var array = [];
+						var index = 0;
+
+						return new IEnumerator(
+								function ()
+								{
+										for (var key in obj)
+										{
+												if (!(obj[key] instanceof Function))
+												{
+														array.push({ Key: key, Value: obj[key] });
+												}
+										}
+								},
+								function ()
+								{
+										return (index < array.length)
+												? this.Yield(array[index++])
+												: false;
+								},
+								Functions.Blank);
+				});
+		},
+
+		Enumerable.Return = function (element)
+		{
+				return Enumerable.Repeat(element, 1);
+		}
+
+		// Overload:function(input, pattern)
+		// Overload:function(input, pattern, flags)
+		Enumerable.Matches = function (input, pattern, flags)
+		{
+				if (flags == null) flags = "";
+				if (pattern instanceof RegExp)
+				{
+						flags += (pattern.ignoreCase) ? "i" : "";
+						flags += (pattern.multiline) ? "m" : "";
+						pattern = pattern.source;
+				}
+				if (flags.indexOf("g") === -1) flags += "g";
+
+				return new Enumerable(function ()
+				{
+						var regex;
+						return new IEnumerator(
+								function () { regex = new RegExp(pattern, flags) },
+								function ()
+								{
+										var match = regex.exec(input);
+										return (match) ? this.Yield(match) : false;
+								},
+								Functions.Blank);
+				});
+		}
+
+		// Overload:function(start, count)
+		// Overload:function(start, count, step)
+		Enumerable.Range = function (start, count, step)
+		{
+				if (step == null) step = 1;
+				return Enumerable.ToInfinity(start, step).Take(count);
+		}
+
+		// Overload:function(start, count)
+		// Overload:function(start, count, step)
+		Enumerable.RangeDown = function (start, count, step)
+		{
+				if (step == null) step = 1;
+				return Enumerable.ToNegativeInfinity(start, step).Take(count);
+		}
+
+		// Overload:function(start, to)
+		// Overload:function(start, to, step)
+		Enumerable.RangeTo = function (start, to, step)
+		{
+				if (step == null) step = 1;
+				return (start < to)
+						? Enumerable.ToInfinity(start, step).TakeWhile(function (i) { return i <= to; })
+						: Enumerable.ToNegativeInfinity(start, step).TakeWhile(function (i) { return i >= to; })
+		}
+
+		// Overload:function(obj)
+		// Overload:function(obj, num)
+		Enumerable.Repeat = function (obj, num)
+		{
+				if (num != null) return Enumerable.Repeat(obj).Take(num);
+
+				return new Enumerable(function ()
+				{
+						return new IEnumerator(
+								Functions.Blank,
+								function () { return this.Yield(obj); },
+								Functions.Blank);
+				});
+		}
+
+		Enumerable.RepeatWithFinalize = function (initializer, finalizer)
+		{
+				initializer = Utils.CreateLambda(initializer);
+				finalizer = Utils.CreateLambda(finalizer);
+
+				return new Enumerable(function ()
+				{
+						var element;
+						return new IEnumerator(
+								function () { element = initializer(); },
+								function () { return this.Yield(element); },
+								function ()
+								{
+										if (element != null)
+										{
+												finalizer(element);
+												element = null;
+										}
+								});
+				});
+		}
+
+		// Overload:function(func)
+		// Overload:function(func, count)
+		Enumerable.Generate = function (func, count)
+		{
+				if (count != null) return Enumerable.Generate(func).Take(count);
+				func = Utils.CreateLambda(func);
+
+				return new Enumerable(function ()
+				{
+						return new IEnumerator(
+								Functions.Blank,
+								function () { return this.Yield(func()); },
+								Functions.Blank);
+				});
+		}
+
+		// Overload:function()
+		// Overload:function(start)
+		// Overload:function(start, step)
+		Enumerable.ToInfinity = function (start, step)
+		{
+				if (start == null) start = 0;
+				if (step == null) step = 1;
+
+				return new Enumerable(function ()
+				{
+						var value;
+						return new IEnumerator(
+								function () { value = start - step },
+								function () { return this.Yield(value += step); },
+								Functions.Blank);
+				});
+		}
+
+		// Overload:function()
+		// Overload:function(start)
+		// Overload:function(start, step)
+		Enumerable.ToNegativeInfinity = function (start, step)
+		{
+				if (start == null) start = 0;
+				if (step == null) step = 1;
+
+				return new Enumerable(function ()
+				{
+						var value;
+						return new IEnumerator(
+								function () { value = start + step },
+								function () { return this.Yield(value -= step); },
+								Functions.Blank);
+				});
+		}
+
+		Enumerable.Unfold = function (seed, func)
+		{
+				func = Utils.CreateLambda(func);
+
+				return new Enumerable(function ()
+				{
+						var isFirst = true;
+						var value;
+						return new IEnumerator(
+								Functions.Blank,
+								function ()
+								{
+										if (isFirst)
+										{
+												isFirst = false;
+												value = seed;
+												return this.Yield(value);
+										}
+										value = func(value);
+										return this.Yield(value);
+								},
+								Functions.Blank);
+				});
+		}
+
+		// Extension Methods
+
+		Enumerable.prototype =
+		{
+				/* Projection and Filtering Methods */
+
+				// Overload:function(func)
+				// Overload:function(func, resultSelector<element>)
+				// Overload:function(func, resultSelector<element, nestLevel>)
+				CascadeBreadthFirst: function (func, resultSelector)
+				{
+						var source = this;
+						func = Utils.CreateLambda(func);
+						resultSelector = Utils.CreateLambda(resultSelector);
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var nestLevel = 0;
+								var buffer = [];
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												while (true)
+												{
+														if (enumerator.MoveNext())
+														{
+																buffer.push(enumerator.Current());
+																return this.Yield(resultSelector(enumerator.Current(), nestLevel));
+														}
+
+														var next = Enumerable.From(buffer).SelectMany(function (x) { return func(x); });
+														if (!next.Any())
+														{
+																return false;
+														}
+														else
+														{
+																nestLevel++;
+																buffer = [];
+																Utils.Dispose(enumerator);
+																enumerator = next.GetEnumerator();
+														}
+												}
+										},
+										function () { Utils.Dispose(enumerator); });
+						});
+				},
+
+				// Overload:function(func)
+				// Overload:function(func, resultSelector<element>)
+				// Overload:function(func, resultSelector<element, nestLevel>)
+				CascadeDepthFirst: function (func, resultSelector)
+				{
+						var source = this;
+						func = Utils.CreateLambda(func);
+						resultSelector = Utils.CreateLambda(resultSelector);
+
+						return new Enumerable(function ()
+						{
+								var enumeratorStack = [];
+								var enumerator;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												while (true)
+												{
+														if (enumerator.MoveNext())
+														{
+																var value = resultSelector(enumerator.Current(), enumeratorStack.length);
+																enumeratorStack.push(enumerator);
+																enumerator = Enumerable.From(func(enumerator.Current())).GetEnumerator();
+																return this.Yield(value);
+														}
+
+														if (enumeratorStack.length <= 0) return false;
+														Utils.Dispose(enumerator);
+														enumerator = enumeratorStack.pop();
+												}
+										},
+										function ()
+										{
+												try { Utils.Dispose(enumerator); }
+												finally { Enumerable.From(enumeratorStack).ForEach(function (s) { s.Dispose(); }) }
+										});
+						});
+				},
+
+				Flatten: function ()
+				{
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var middleEnumerator = null;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												while (true)
+												{
+														if (middleEnumerator != null)
+														{
+																if (middleEnumerator.MoveNext())
+																{
+																		return this.Yield(middleEnumerator.Current());
+																}
+																else
+																{
+																		middleEnumerator = null;
+																}
+														}
+
+														if (enumerator.MoveNext())
+														{
+																if (enumerator.Current() instanceof Array)
+																{
+																		Utils.Dispose(middleEnumerator);
+																		middleEnumerator = Enumerable.From(enumerator.Current())
+																				.SelectMany(Functions.Identity)
+																				.Flatten()
+																				.GetEnumerator();
+																		continue;
+																}
+																else
+																{
+																		return this.Yield(enumerator.Current());
+																}
+														}
+
+														return false;
+												}
+										},
+										function ()
+										{
+												try { Utils.Dispose(enumerator); }
+												finally { Utils.Dispose(middleEnumerator); }
+										});
+						});
+				},
+
+				Pairwise: function (selector)
+				{
+						var source = this;
+						selector = Utils.CreateLambda(selector);
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+
+								return new IEnumerator(
+										function ()
+										{
+												enumerator = source.GetEnumerator();
+												enumerator.MoveNext();
+										},
+										function ()
+										{
+												var prev = enumerator.Current();
+												return (enumerator.MoveNext())
+														? this.Yield(selector(prev, enumerator.Current()))
+														: false;
+										},
+										function () { Utils.Dispose(enumerator); });
+						});
+				},
+
+				// Overload:function(func)
+				// Overload:function(seed,func<value,element>)
+				// Overload:function(seed,func<value,element>,resultSelector)
+				Scan: function (seed, func, resultSelector)
+				{
+						if (resultSelector != null) return this.Scan(seed, func).Select(resultSelector);
+
+						var isUseSeed;
+						if (func == null)
+						{
+								func = Utils.CreateLambda(seed); // arguments[0]
+								isUseSeed = false;
+						}
+						else
+						{
+								func = Utils.CreateLambda(func);
+								isUseSeed = true;
+						}
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var value;
+								var isFirst = true;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												if (isFirst)
+												{
+														isFirst = false;
+														if (!isUseSeed)
+														{
+																if (enumerator.MoveNext())
+																{
+																		return this.Yield(value = enumerator.Current());
+																}
+														}
+														else
+														{
+																return this.Yield(value = seed);
+														}
+												}
+
+												return (enumerator.MoveNext())
+														? this.Yield(value = func(value, enumerator.Current()))
+														: false;
+										},
+										function () { Utils.Dispose(enumerator); });
+						});
+				},
+
+				// Overload:function(selector<element>)
+				// Overload:function(selector<element,index>)
+				Select: function (selector)
+				{
+						var source = this;
+						selector = Utils.CreateLambda(selector);
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var index = 0;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												return (enumerator.MoveNext())
+														? this.Yield(selector(enumerator.Current(), index++))
+														: false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				// Overload:function(collectionSelector<element>)
+				// Overload:function(collectionSelector<element,index>)
+				// Overload:function(collectionSelector<element>,resultSelector)
+				// Overload:function(collectionSelector<element,index>,resultSelector)
+				SelectMany: function (collectionSelector, resultSelector)
+				{
+						var source = this;
+						collectionSelector = Utils.CreateLambda(collectionSelector);
+						if (resultSelector == null) resultSelector = function (a, b) { return b; }
+						resultSelector = Utils.CreateLambda(resultSelector);
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var middleEnumerator = undefined;
+								var index = 0;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												if (middleEnumerator === undefined)
+												{
+														if (!enumerator.MoveNext()) return false;
+												}
+												do
+												{
+														if (middleEnumerator == null)
+														{
+																var middleSeq = collectionSelector(enumerator.Current(), index++);
+																middleEnumerator = Enumerable.From(middleSeq).GetEnumerator();
+														}
+														if (middleEnumerator.MoveNext())
+														{
+																return this.Yield(resultSelector(enumerator.Current(), middleEnumerator.Current()));
+														}
+														Utils.Dispose(middleEnumerator);
+														middleEnumerator = null;
+												} while (enumerator.MoveNext())
+												return false;
+										},
+										function ()
+										{
+												try { Utils.Dispose(enumerator); }
+												finally { Utils.Dispose(middleEnumerator); }
+										})
+						});
+				},
+
+				// Overload:function(predicate<element>)
+				// Overload:function(predicate<element,index>)
+				Where: function (predicate)
+				{
+						predicate = Utils.CreateLambda(predicate);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var index = 0;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												while (enumerator.MoveNext())
+												{
+														if (predicate(enumerator.Current(), index++))
+														{
+																return this.Yield(enumerator.Current());
+														}
+												}
+												return false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				OfType: function (type)
+				{
+						var typeName;
+						switch (type)
+						{
+								case Number: typeName = Types.Number; break;
+								case String: typeName = Types.String; break;
+								case Boolean: typeName = Types.Boolean; break;
+								case Function: typeName = Types.Function; break;
+								default: typeName = null; break;
+						}
+						return (typeName === null)
+								? this.Where(function (x) { return x instanceof type })
+								: this.Where(function (x) { return typeof x === typeName });
+				},
+
+				// Overload:function(second,selector<outer,inner>)
+				// Overload:function(second,selector<outer,inner,index>)
+				Zip: function (second, selector)
+				{
+						selector = Utils.CreateLambda(selector);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var firstEnumerator;
+								var secondEnumerator;
+								var index = 0;
+
+								return new IEnumerator(
+										function ()
+										{
+												firstEnumerator = source.GetEnumerator();
+												secondEnumerator = Enumerable.From(second).GetEnumerator();
+										},
+										function ()
+										{
+												if (firstEnumerator.MoveNext() && secondEnumerator.MoveNext())
+												{
+														return this.Yield(selector(firstEnumerator.Current(), secondEnumerator.Current(), index++));
+												}
+												return false;
+										},
+										function ()
+										{
+												try { Utils.Dispose(firstEnumerator); }
+												finally { Utils.Dispose(secondEnumerator); }
+										})
+						});
+				},
+
+				/* Join Methods */
+
+				// Overload:function (inner, outerKeySelector, innerKeySelector, resultSelector)
+				// Overload:function (inner, outerKeySelector, innerKeySelector, resultSelector, compareSelector)
+				Join: function (inner, outerKeySelector, innerKeySelector, resultSelector, compareSelector)
+				{
+						outerKeySelector = Utils.CreateLambda(outerKeySelector);
+						innerKeySelector = Utils.CreateLambda(innerKeySelector);
+						resultSelector = Utils.CreateLambda(resultSelector);
+						compareSelector = Utils.CreateLambda(compareSelector);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var outerEnumerator;
+								var lookup;
+								var innerElements = null;
+								var innerCount = 0;
+
+								return new IEnumerator(
+										function ()
+										{
+												outerEnumerator = source.GetEnumerator();
+												lookup = Enumerable.From(inner).ToLookup(innerKeySelector, Functions.Identity, compareSelector);
+										},
+										function ()
+										{
+												while (true)
+												{
+														if (innerElements != null)
+														{
+																var innerElement = innerElements[innerCount++];
+																if (innerElement !== undefined)
+																{
+																		return this.Yield(resultSelector(outerEnumerator.Current(), innerElement));
+																}
+
+																innerElement = null;
+																innerCount = 0;
+														}
+
+														if (outerEnumerator.MoveNext())
+														{
+																var key = outerKeySelector(outerEnumerator.Current());
+																innerElements = lookup.Get(key).ToArray();
+														}
+														else
+														{
+																return false;
+														}
+												}
+										},
+										function () { Utils.Dispose(outerEnumerator); })
+						});
+				},
+
+				// Overload:function (inner, outerKeySelector, innerKeySelector, resultSelector)
+				// Overload:function (inner, outerKeySelector, innerKeySelector, resultSelector, compareSelector)
+				GroupJoin: function (inner, outerKeySelector, innerKeySelector, resultSelector, compareSelector)
+				{
+						outerKeySelector = Utils.CreateLambda(outerKeySelector);
+						innerKeySelector = Utils.CreateLambda(innerKeySelector);
+						resultSelector = Utils.CreateLambda(resultSelector);
+						compareSelector = Utils.CreateLambda(compareSelector);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator = source.GetEnumerator();
+								var lookup = null;
+
+								return new IEnumerator(
+										function ()
+										{
+												enumerator = source.GetEnumerator();
+												lookup = Enumerable.From(inner).ToLookup(innerKeySelector, Functions.Identity, compareSelector);
+										},
+										function ()
+										{
+												if (enumerator.MoveNext())
+												{
+														var innerElement = lookup.Get(outerKeySelector(enumerator.Current()));
+														return this.Yield(resultSelector(enumerator.Current(), innerElement));
+												}
+												return false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				/* Set Methods */
+
+				All: function (predicate)
+				{
+						predicate = Utils.CreateLambda(predicate);
+
+						var result = true;
+						this.ForEach(function (x)
+						{
+								if (!predicate(x))
+								{
+										result = false;
+										return false; // break
+								}
+						});
+						return result;
+				},
+
+				// Overload:function()
+				// Overload:function(predicate)
+				Any: function (predicate)
+				{
+						predicate = Utils.CreateLambda(predicate);
+
+						var enumerator = this.GetEnumerator();
+						try
+						{
+								if (arguments.length == 0) return enumerator.MoveNext(); // case:function()
+
+								while (enumerator.MoveNext()) // case:function(predicate)
+								{
+										if (predicate(enumerator.Current())) return true;
+								}
+								return false;
+						}
+						finally { Utils.Dispose(enumerator); }
+				},
+
+				Concat: function (second)
+				{
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var firstEnumerator;
+								var secondEnumerator;
+
+								return new IEnumerator(
+										function () { firstEnumerator = source.GetEnumerator(); },
+										function ()
+										{
+												if (secondEnumerator == null)
+												{
+														if (firstEnumerator.MoveNext()) return this.Yield(firstEnumerator.Current());
+														secondEnumerator = Enumerable.From(second).GetEnumerator();
+												}
+												if (secondEnumerator.MoveNext()) return this.Yield(secondEnumerator.Current());
+												return false;
+										},
+										function ()
+										{
+												try { Utils.Dispose(firstEnumerator); }
+												finally { Utils.Dispose(secondEnumerator); }
+										})
+						});
+				},
+
+				Insert: function (index, second)
+				{
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var firstEnumerator;
+								var secondEnumerator;
+								var count = 0;
+								var isEnumerated = false;
+
+								return new IEnumerator(
+										function ()
+										{
+												firstEnumerator = source.GetEnumerator();
+												secondEnumerator = Enumerable.From(second).GetEnumerator();
+										},
+										function ()
+										{
+												if (count == index && secondEnumerator.MoveNext())
+												{
+														isEnumerated = true;
+														return this.Yield(secondEnumerator.Current());
+												}
+												if (firstEnumerator.MoveNext())
+												{
+														count++;
+														return this.Yield(firstEnumerator.Current());
+												}
+												if (!isEnumerated && secondEnumerator.MoveNext())
+												{
+														return this.Yield(secondEnumerator.Current());
+												}
+												return false;
+										},
+										function ()
+										{
+												try { Utils.Dispose(firstEnumerator); }
+												finally { Utils.Dispose(secondEnumerator); }
+										})
+						});
+				},
+
+				Alternate: function (value)
+				{
+						value = Enumerable.Return(value);
+						return this.SelectMany(function (elem)
+						{
+								return Enumerable.Return(elem).Concat(value);
+						}).TakeExceptLast();
+				},
+
+				// Overload:function(value)
+				// Overload:function(value, compareSelector)
+				Contains: function (value, compareSelector)
+				{
+						compareSelector = Utils.CreateLambda(compareSelector);
+						var enumerator = this.GetEnumerator();
+						try
+						{
+								while (enumerator.MoveNext())
+								{
+										if (compareSelector(enumerator.Current()) === value) return true;
+								}
+								return false;
+						}
+						finally { Utils.Dispose(enumerator) }
+				},
+
+				DefaultIfEmpty: function (defaultValue)
+				{
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var isFirst = true;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												if (enumerator.MoveNext())
+												{
+														isFirst = false;
+														return this.Yield(enumerator.Current());
+												}
+												else if (isFirst)
+												{
+														isFirst = false;
+														return this.Yield(defaultValue);
+												}
+												return false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				// Overload:function()
+				// Overload:function(compareSelector)
+				Distinct: function (compareSelector)
+				{
+						return this.Except(Enumerable.Empty(), compareSelector);
+				},
+
+				// Overload:function(second)
+				// Overload:function(second, compareSelector)
+				Except: function (second, compareSelector)
+				{
+						compareSelector = Utils.CreateLambda(compareSelector);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var keys;
+
+								return new IEnumerator(
+										function ()
+										{
+												enumerator = source.GetEnumerator();
+												keys = new Dictionary(compareSelector);
+												Enumerable.From(second).ForEach(function (key) { keys.Add(key); });
+										},
+										function ()
+										{
+												while (enumerator.MoveNext())
+												{
+														var current = enumerator.Current();
+														if (!keys.Contains(current))
+														{
+																keys.Add(current);
+																return this.Yield(current);
+														}
+												}
+												return false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				// Overload:function(second)
+				// Overload:function(second, compareSelector)
+				Intersect: function (second, compareSelector)
+				{
+						compareSelector = Utils.CreateLambda(compareSelector);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var keys;
+								var outs;
+
+								return new IEnumerator(
+										function ()
+										{
+												enumerator = source.GetEnumerator();
+
+												keys = new Dictionary(compareSelector);
+												Enumerable.From(second).ForEach(function (key) { keys.Add(key); });
+												outs = new Dictionary(compareSelector);
+										},
+										function ()
+										{
+												while (enumerator.MoveNext())
+												{
+														var current = enumerator.Current();
+														if (!outs.Contains(current) && keys.Contains(current))
+														{
+																outs.Add(current);
+																return this.Yield(current);
+														}
+												}
+												return false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				// Overload:function(second)
+				// Overload:function(second, compareSelector)
+				SequenceEqual: function (second, compareSelector)
+				{
+						compareSelector = Utils.CreateLambda(compareSelector);
+
+						var firstEnumerator = this.GetEnumerator();
+						try
+						{
+								var secondEnumerator = Enumerable.From(second).GetEnumerator();
+								try
+								{
+										while (firstEnumerator.MoveNext())
+										{
+												if (!secondEnumerator.MoveNext()
+														|| compareSelector(firstEnumerator.Current()) !== compareSelector(secondEnumerator.Current()))
+												{
+														return false;
+												}
+										}
+
+										if (secondEnumerator.MoveNext()) return false;
+										return true;
+								}
+								finally { Utils.Dispose(secondEnumerator); }
+						}
+						finally { Utils.Dispose(firstEnumerator); }
+				},
+
+				Union: function (second, compareSelector)
+				{
+						compareSelector = Utils.CreateLambda(compareSelector);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var firstEnumerator;
+								var secondEnumerator;
+								var keys;
+
+								return new IEnumerator(
+										function ()
+										{
+												firstEnumerator = source.GetEnumerator();
+												keys = new Dictionary(compareSelector);
+										},
+										function ()
+										{
+												var current;
+												if (secondEnumerator === undefined)
+												{
+														while (firstEnumerator.MoveNext())
+														{
+																current = firstEnumerator.Current();
+																if (!keys.Contains(current))
+																{
+																		keys.Add(current);
+																		return this.Yield(current);
+																}
+														}
+														secondEnumerator = Enumerable.From(second).GetEnumerator();
+												}
+												while (secondEnumerator.MoveNext())
+												{
+														current = secondEnumerator.Current();
+														if (!keys.Contains(current))
+														{
+																keys.Add(current);
+																return this.Yield(current);
+														}
+												}
+												return false;
+										},
+										function ()
+										{
+												try { Utils.Dispose(firstEnumerator); }
+												finally { Utils.Dispose(secondEnumerator); }
+										})
+						});
+				},
+
+				/* Ordering Methods */
+
+				OrderBy: function (keySelector)
+				{
+						return new OrderedEnumerable(this, keySelector, false);
+				},
+
+				OrderByDescending: function (keySelector)
+				{
+						return new OrderedEnumerable(this, keySelector, true);
+				},
+
+				Reverse: function ()
+				{
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var buffer;
+								var index;
+
+								return new IEnumerator(
+										function ()
+										{
+												buffer = source.ToArray();
+												index = buffer.length;
+										},
+										function ()
+										{
+												return (index > 0)
+														? this.Yield(buffer[--index])
+														: false;
+										},
+										Functions.Blank)
+						});
+				},
+
+				Shuffle: function ()
+				{
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var buffer;
+
+								return new IEnumerator(
+										function () { buffer = source.ToArray(); },
+										function ()
+										{
+												if (buffer.length > 0)
+												{
+														var i = Math.floor(Math.random() * buffer.length);
+														return this.Yield(buffer.splice(i, 1)[0]);
+												}
+												return false;
+										},
+										Functions.Blank)
+						});
+				},
+
+				/* Grouping Methods */
+
+				// Overload:function(keySelector)
+				// Overload:function(keySelector,elementSelector)
+				// Overload:function(keySelector,elementSelector,resultSelector)
+				// Overload:function(keySelector,elementSelector,resultSelector,compareSelector)
+				GroupBy: function (keySelector, elementSelector, resultSelector, compareSelector)
+				{
+						var source = this;
+						keySelector = Utils.CreateLambda(keySelector);
+						elementSelector = Utils.CreateLambda(elementSelector);
+						if (resultSelector != null) resultSelector = Utils.CreateLambda(resultSelector);
+						compareSelector = Utils.CreateLambda(compareSelector);
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+
+								return new IEnumerator(
+										function ()
+										{
+												enumerator = source.ToLookup(keySelector, elementSelector, compareSelector)
+														.ToEnumerable()
+														.GetEnumerator();
+										},
+										function ()
+										{
+												while (enumerator.MoveNext())
+												{
+														return (resultSelector == null)
+																? this.Yield(enumerator.Current())
+																: this.Yield(resultSelector(enumerator.Current().Key(), enumerator.Current()));
+												}
+												return false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				// Overload:function(keySelector)
+				// Overload:function(keySelector,elementSelector)
+				// Overload:function(keySelector,elementSelector,resultSelector)
+				// Overload:function(keySelector,elementSelector,resultSelector,compareSelector)
+				PartitionBy: function (keySelector, elementSelector, resultSelector, compareSelector)
+				{
+
+						var source = this;
+						keySelector = Utils.CreateLambda(keySelector);
+						elementSelector = Utils.CreateLambda(elementSelector);
+						compareSelector = Utils.CreateLambda(compareSelector);
+						var hasResultSelector;
+						if (resultSelector == null)
+						{
+								hasResultSelector = false;
+								resultSelector = function (key, group) { return new Grouping(key, group) }
+						}
+						else
+						{
+								hasResultSelector = true;
+								resultSelector = Utils.CreateLambda(resultSelector);
+						}
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var key;
+								var compareKey;
+								var group = [];
+
+								return new IEnumerator(
+										function ()
+										{
+												enumerator = source.GetEnumerator();
+												if (enumerator.MoveNext())
+												{
+														key = keySelector(enumerator.Current());
+														compareKey = compareSelector(key);
+														group.push(elementSelector(enumerator.Current()));
+												}
+										},
+										function ()
+										{
+												var hasNext;
+												while ((hasNext = enumerator.MoveNext()) == true)
+												{
+														if (compareKey === compareSelector(keySelector(enumerator.Current())))
+														{
+																group.push(elementSelector(enumerator.Current()));
+														}
+														else break;
+												}
+
+												if (group.length > 0)
+												{
+														var result = (hasResultSelector)
+																? resultSelector(key, Enumerable.From(group))
+																: resultSelector(key, group);
+														if (hasNext)
+														{
+																key = keySelector(enumerator.Current());
+																compareKey = compareSelector(key);
+																group = [elementSelector(enumerator.Current())];
+														}
+														else group = [];
+
+														return this.Yield(result);
+												}
+
+												return false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				BufferWithCount: function (count)
+				{
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+
+								return new IEnumerator(
+								function () { enumerator = source.GetEnumerator(); },
+								function ()
+								{
+										var array = [];
+										var index = 0;
+										while (enumerator.MoveNext())
+										{
+												array.push(enumerator.Current());
+												if (++index >= count) return this.Yield(array);
+										}
+										if (array.length > 0) return this.Yield(array);
+										return false;
+								},
+								function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				/* Aggregate Methods */
+
+				// Overload:function(func)
+				// Overload:function(seed,func)
+				// Overload:function(seed,func,resultSelector)
+				Aggregate: function (seed, func, resultSelector)
+				{
+						return this.Scan(seed, func, resultSelector).Last();
+				},
+
+				// Overload:function()
+				// Overload:function(selector)
+				Average: function (selector)
+				{
+						selector = Utils.CreateLambda(selector);
+
+						var sum = 0;
+						var count = 0;
+						this.ForEach(function (x)
+						{
+								sum += selector(x);
+								++count;
+						});
+
+						return sum / count;
+				},
+
+				// Overload:function()
+				// Overload:function(predicate)
+				Count: function (predicate)
+				{
+						predicate = (predicate == null) ? Functions.True : Utils.CreateLambda(predicate);
+
+						var count = 0;
+						this.ForEach(function (x, i)
+						{
+								if (predicate(x, i)) ++count;
+						});
+						return count;
+				},
+
+				// Overload:function()
+				// Overload:function(selector)
+				Max: function (selector)
+				{
+						if (selector == null) selector = Functions.Identity;
+						return this.Select(selector).Aggregate(function (a, b) { return (a > b) ? a : b; });
+				},
+
+				// Overload:function()
+				// Overload:function(selector)
+				Min: function (selector)
+				{
+						if (selector == null) selector = Functions.Identity;
+						return this.Select(selector).Aggregate(function (a, b) { return (a < b) ? a : b; });
+				},
+
+				MaxBy: function (keySelector)
+				{
+						keySelector = Utils.CreateLambda(keySelector);
+						return this.Aggregate(function (a, b) { return (keySelector(a) > keySelector(b)) ? a : b });
+				},
+
+				MinBy: function (keySelector)
+				{
+						keySelector = Utils.CreateLambda(keySelector);
+						return this.Aggregate(function (a, b) { return (keySelector(a) < keySelector(b)) ? a : b });
+				},
+
+				// Overload:function()
+				// Overload:function(selector)
+				Sum: function (selector)
+				{
+						if (selector == null) selector = Functions.Identity;
+						return this.Select(selector).Aggregate(0, function (a, b) { return a + b; });
+				},
+
+				/* Paging Methods */
+
+				ElementAt: function (index)
+				{
+						var value;
+						var found = false;
+						this.ForEach(function (x, i)
+						{
+								if (i == index)
+								{
+										value = x;
+										found = true;
+										return false;
+								}
+						});
+
+						if (!found) throw new Error("index is less than 0 or greater than or equal to the number of elements in source.");
+						return value;
+				},
+
+				ElementAtOrDefault: function (index, defaultValue)
+				{
+						var value;
+						var found = false;
+						this.ForEach(function (x, i)
+						{
+								if (i == index)
+								{
+										value = x;
+										found = true;
+										return false;
+								}
+						});
+
+						return (!found) ? defaultValue : value;
+				},
+
+				// Overload:function()
+				// Overload:function(predicate)
+				First: function (predicate)
+				{
+						if (predicate != null) return this.Where(predicate).First();
+
+						var value;
+						var found = false;
+						this.ForEach(function (x)
+						{
+								value = x;
+								found = true;
+								return false;
+						});
+
+						if (!found) throw new Error("First:No element satisfies the condition.");
+						return value;
+				},
+
+				// Overload:function(defaultValue)
+				// Overload:function(defaultValue,predicate)
+				FirstOrDefault: function (defaultValue, predicate)
+				{
+						if (predicate != null) return this.Where(predicate).FirstOrDefault(defaultValue);
+
+						var value;
+						var found = false;
+						this.ForEach(function (x)
+						{
+								value = x;
+								found = true;
+								return false;
+						});
+						return (!found) ? defaultValue : value;
+				},
+
+				// Overload:function()
+				// Overload:function(predicate)
+				Last: function (predicate)
+				{
+						if (predicate != null) return this.Where(predicate).Last();
+
+						var value;
+						var found = false;
+						this.ForEach(function (x)
+						{
+								found = true;
+								value = x;
+						});
+
+						if (!found) throw new Error("Last:No element satisfies the condition.");
+						return value;
+				},
+
+				// Overload:function(defaultValue)
+				// Overload:function(defaultValue,predicate)
+				LastOrDefault: function (defaultValue, predicate)
+				{
+						if (predicate != null) return this.Where(predicate).LastOrDefault(defaultValue);
+
+						var value;
+						var found = false;
+						this.ForEach(function (x)
+						{
+								found = true;
+								value = x;
+						});
+						return (!found) ? defaultValue : value;
+				},
+
+				// Overload:function()
+				// Overload:function(predicate)
+				Single: function (predicate)
+				{
+						if (predicate != null) return this.Where(predicate).Single();
+
+						var value;
+						var found = false;
+						this.ForEach(function (x)
+						{
+								if (!found)
+								{
+										found = true;
+										value = x;
+								}
+								else throw new Error("Single:sequence contains more than one element.");
+						});
+
+						if (!found) throw new Error("Single:No element satisfies the condition.");
+						return value;
+				},
+
+				// Overload:function(defaultValue)
+				// Overload:function(defaultValue,predicate)
+				SingleOrDefault: function (defaultValue, predicate)
+				{
+						if (predicate != null) return this.Where(predicate).SingleOrDefault(defaultValue);
+
+						var value;
+						var found = false;
+						this.ForEach(function (x)
+						{
+								if (!found)
+								{
+										found = true;
+										value = x;
+								}
+								else throw new Error("Single:sequence contains more than one element.");
+						});
+
+						return (!found) ? defaultValue : value;
+				},
+
+				Skip: function (count)
+				{
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var index = 0;
+
+								return new IEnumerator(
+										function ()
+										{
+												enumerator = source.GetEnumerator();
+												while (index++ < count && enumerator.MoveNext()) { };
+										},
+										function ()
+										{
+												return (enumerator.MoveNext())
+														? this.Yield(enumerator.Current())
+														: false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				// Overload:function(predicate<element>)
+				// Overload:function(predicate<element,index>)
+				SkipWhile: function (predicate)
+				{
+						predicate = Utils.CreateLambda(predicate);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var index = 0;
+								var isSkipEnd = false;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												while (!isSkipEnd)
+												{
+														if (enumerator.MoveNext())
+														{
+																if (!predicate(enumerator.Current(), index++))
+																{
+																		isSkipEnd = true;
+																		return this.Yield(enumerator.Current());
+																}
+																continue;
+														}
+														else return false;
+												}
+
+												return (enumerator.MoveNext())
+														? this.Yield(enumerator.Current())
+														: false;
+
+										},
+										function () { Utils.Dispose(enumerator); });
+						});
+				},
+
+				Take: function (count)
+				{
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var index = 0;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												return (index++ < count && enumerator.MoveNext())
+														? this.Yield(enumerator.Current())
+														: false;
+										},
+										function () { Utils.Dispose(enumerator); }
+								)
+						});
+				},
+
+				// Overload:function(predicate<element>)
+				// Overload:function(predicate<element,index>)
+				TakeWhile: function (predicate)
+				{
+						predicate = Utils.CreateLambda(predicate);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var index = 0;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												return (enumerator.MoveNext() && predicate(enumerator.Current(), index++))
+														? this.Yield(enumerator.Current())
+														: false;
+										},
+										function () { Utils.Dispose(enumerator); });
+						});
+				},
+
+				// Overload:function()
+				// Overload:function(count)
+				TakeExceptLast: function (count)
+				{
+						if (count == null) count = 1;
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								if (count <= 0) return source.GetEnumerator(); // do nothing
+
+								var enumerator;
+								var q = [];
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												while (enumerator.MoveNext())
+												{
+														if (q.length == count)
+														{
+																q.push(enumerator.Current());
+																return this.Yield(q.shift());
+														}
+														q.push(enumerator.Current());
+												}
+												return false;
+										},
+										function () { Utils.Dispose(enumerator); });
+						});
+				},
+
+				TakeFromLast: function (count)
+				{
+						if (count <= 0 || count == null) return Enumerable.Empty();
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var sourceEnumerator;
+								var enumerator;
+								var q = [];
+
+								return new IEnumerator(
+										function () { sourceEnumerator = source.GetEnumerator(); },
+										function ()
+										{
+												while (sourceEnumerator.MoveNext())
+												{
+														if (q.length == count) q.shift()
+														q.push(sourceEnumerator.Current());
+												}
+												if (enumerator == null)
+												{
+														enumerator = Enumerable.From(q).GetEnumerator();
+												}
+												return (enumerator.MoveNext())
+														? this.Yield(enumerator.Current())
+														: false;
+										},
+										function () { Utils.Dispose(enumerator); });
+						});
+				},
+
+				IndexOf: function (item)
+				{
+						var found = null;
+						this.ForEach(function (x, i)
+						{
+								if (x === item)
+								{
+										found = i;
+										return true;
+								}
+						});
+
+						return (found !== null) ? found : -1;
+				},
+
+				LastIndexOf: function (item)
+				{
+						var result = -1;
+						this.ForEach(function (x, i)
+						{
+								if (x === item) result = i;
+						});
+
+						return result;
+				},
+
+				/* Convert Methods */
+
+				ToArray: function ()
+				{
+						var array = [];
+						this.ForEach(function (x) { array.push(x) });
+						return array;
+				},
+
+				// Overload:function(keySelector)
+				// Overload:function(keySelector, elementSelector)
+				// Overload:function(keySelector, elementSelector, compareSelector)
+				ToLookup: function (keySelector, elementSelector, compareSelector)
+				{
+						keySelector = Utils.CreateLambda(keySelector);
+						elementSelector = Utils.CreateLambda(elementSelector);
+						compareSelector = Utils.CreateLambda(compareSelector);
+
+						var dict = new Dictionary(compareSelector);
+						this.ForEach(function (x)
+						{
+								var key = keySelector(x);
+								var element = elementSelector(x);
+
+								var array = dict.Get(key);
+								if (array !== undefined) array.push(element);
+								else dict.Add(key, [element]);
+						});
+						return new Lookup(dict);
+				},
+
+				ToObject: function (keySelector, elementSelector)
+				{
+						keySelector = Utils.CreateLambda(keySelector);
+						elementSelector = Utils.CreateLambda(elementSelector);
+
+						var obj = {};
+						this.ForEach(function (x)
+						{
+								obj[keySelector(x)] = elementSelector(x);
+						});
+						return obj;
+				},
+
+				// Overload:function(keySelector, elementSelector)
+				// Overload:function(keySelector, elementSelector, compareSelector)
+				ToDictionary: function (keySelector, elementSelector, compareSelector)
+				{
+						keySelector = Utils.CreateLambda(keySelector);
+						elementSelector = Utils.CreateLambda(elementSelector);
+						compareSelector = Utils.CreateLambda(compareSelector);
+
+						var dict = new Dictionary(compareSelector);
+						this.ForEach(function (x)
+						{
+								dict.Add(keySelector(x), elementSelector(x));
+						});
+						return dict;
+				},
+
+				// Overload:function()
+				// Overload:function(replacer)
+				// Overload:function(replacer, space)
+				ToJSON: function (replacer, space)
+				{
+						return JSON.stringify(this.ToArray(), replacer, space);
+				},
+
+				// Overload:function()
+				// Overload:function(separator)
+				// Overload:function(separator,selector)
+				ToString: function (separator, selector)
+				{
+						if (separator == null) separator = "";
+						if (selector == null) selector = Functions.Identity;
+
+						return this.Select(selector).ToArray().join(separator);
+				},
+
+
+				/* Action Methods */
+
+				// Overload:function(action<element>)
+				// Overload:function(action<element,index>)
+				Do: function (action)
+				{
+						var source = this;
+						action = Utils.CreateLambda(action);
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+								var index = 0;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												if (enumerator.MoveNext())
+												{
+														action(enumerator.Current(), index++);
+														return this.Yield(enumerator.Current());
+												}
+												return false;
+										},
+										function () { Utils.Dispose(enumerator); });
+						});
+				},
+
+				// Overload:function(action<element>)
+				// Overload:function(action<element,index>)
+				// Overload:function(func<element,bool>)
+				// Overload:function(func<element,index,bool>)
+				ForEach: function (action)
+				{
+						action = Utils.CreateLambda(action);
+
+						var index = 0;
+						var enumerator = this.GetEnumerator();
+						try
+						{
+								while (enumerator.MoveNext())
+								{
+										if (action(enumerator.Current(), index++) === false) break;
+								}
+						}
+						finally { Utils.Dispose(enumerator); }
+				},
+
+				// Overload:function()
+				// Overload:function(separator)
+				// Overload:function(separator,selector)
+				Write: function (separator, selector)
+				{
+						if (separator == null) separator = "";
+						selector = Utils.CreateLambda(selector);
+
+						var isFirst = true;
+						this.ForEach(function (item)
+						{
+								if (isFirst) isFirst = false;
+								else document.write(separator);
+								document.write(selector(item));
+						});
+				},
+
+				// Overload:function()
+				// Overload:function(selector)
+				WriteLine: function (selector)
+				{
+						selector = Utils.CreateLambda(selector);
+
+						this.ForEach(function (item)
+						{
+								document.write(selector(item));
+								document.write("<br />");
+						});
+				},
+
+				Force: function ()
+				{
+						var enumerator = this.GetEnumerator();
+
+						try { while (enumerator.MoveNext()) { } }
+						finally { Utils.Dispose(enumerator); }
+				},
+
+				/* Functional Methods */
+
+				Let: function (func)
+				{
+						func = Utils.CreateLambda(func);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+
+								return new IEnumerator(
+										function ()
+										{
+												enumerator = Enumerable.From(func(source)).GetEnumerator();
+										},
+										function ()
+										{
+												return (enumerator.MoveNext())
+														? this.Yield(enumerator.Current())
+														: false;
+										},
+										function () { Utils.Dispose(enumerator); })
+						});
+				},
+
+				Share: function ()
+				{
+						var source = this;
+						var sharedEnumerator;
+
+						return new Enumerable(function ()
+						{
+								return new IEnumerator(
+										function ()
+										{
+												if (sharedEnumerator == null)
+												{
+														sharedEnumerator = source.GetEnumerator();
+												}
+										},
+										function ()
+										{
+												return (sharedEnumerator.MoveNext())
+														? this.Yield(sharedEnumerator.Current())
+														: false;
+										},
+										Functions.Blank
+								)
+						});
+				},
+
+				MemoizeAll: function ()
+				{
+						var source = this;
+						var cache;
+						var enumerator;
+
+						return new Enumerable(function ()
+						{
+								var index = -1;
+
+								return new IEnumerator(
+										function ()
+										{
+												if (enumerator == null)
+												{
+														enumerator = source.GetEnumerator();
+														cache = [];
+												}
+										},
+										function ()
+										{
+												index++;
+												if (cache.length <= index)
+												{
+														return (enumerator.MoveNext())
+																? this.Yield(cache[index] = enumerator.Current())
+																: false;
+												}
+
+												return this.Yield(cache[index]);
+										},
+										Functions.Blank
+								)
+						});
+				},
+
+				/* Error Handling Methods */
+
+				Catch: function (handler)
+				{
+						handler = Utils.CreateLambda(handler);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												try
+												{
+														return (enumerator.MoveNext())
+															 ? this.Yield(enumerator.Current())
+															 : false;
+												}
+												catch (e)
+												{
+														handler(e);
+														return false;
+												}
+										},
+										function () { Utils.Dispose(enumerator); });
+						});
+				},
+
+				Finally: function (finallyAction)
+				{
+						finallyAction = Utils.CreateLambda(finallyAction);
+						var source = this;
+
+						return new Enumerable(function ()
+						{
+								var enumerator;
+
+								return new IEnumerator(
+										function () { enumerator = source.GetEnumerator(); },
+										function ()
+										{
+												return (enumerator.MoveNext())
+													 ? this.Yield(enumerator.Current())
+													 : false;
+										},
+										function ()
+										{
+												try { Utils.Dispose(enumerator); }
+												finally { finallyAction(); }
+										});
+						});
+				},
+
+				/* For Debug Methods */
+
+				// Overload:function()
+				// Overload:function(message)
+				// Overload:function(message,selector)
+				Trace: function (message, selector)
+				{
+						if (message == null) message = "Trace";
+						selector = Utils.CreateLambda(selector);
+
+						return this.Do(function (item)
+						{
+								console.log(message, ":", selector(item));
+						});
+				}
+		}
+
+		// private
+
+		// static functions
+		var Functions =
+		{
+				Identity: function (x) { return x; },
+				True: function () { return true; },
+				Blank: function () { }
+		}
+
+		// static const
+		var Types =
+		{
+				Boolean: typeof true,
+				Number: typeof 0,
+				String: typeof "",
+				Object: typeof {},
+				Undefined: typeof undefined,
+				Function: typeof function () { }
+		}
+
+		// static utility methods
+		var Utils =
+		{
+				// Create anonymous function from lambda expression string
+				CreateLambda: function (expression)
+				{
+						if (expression == null) return Functions.Identity;
+						if (typeof expression == Types.String)
+						{
+								if (expression == "")
+								{
+										return Functions.Identity;
+								}
+								else if (expression.indexOf("=>") == -1)
+								{
+										return new Function("$,$$,$$$,$$$$", "return " + expression);
+								}
+								else
+								{
+										var expr = expression.match(/^[(\s]*([^()]*?)[)\s]*=>(.*)/);
+										return new Function(expr[1], "return " + expr[2]);
+								}
+						}
+						return expression;
+				},
+
+				IsIEnumerable: function (obj)
+				{
+						if (typeof Enumerator != Types.Undefined)
+						{
+								try
+								{
+										new Enumerator(obj);
+										return true;
+								}
+								catch (e) { }
+						}
+						return false;
+				},
+
+				Compare: function (a, b)
+				{
+						return (a === b) ? 0
+								: (a > b) ? 1
+								: -1;
+				},
+
+				Dispose: function (obj)
+				{
+						if (obj != null) obj.Dispose();
+				}
+		}
+
+		// IEnumerator State
+		var State = { Before: 0, Running: 1, After: 2 }
+
+		// name "Enumerator" is conflict JScript's "Enumerator"
+		var IEnumerator = function (initialize, tryGetNext, dispose)
+		{
+				var yielder = new Yielder();
+				var state = State.Before;
+
+				this.Current = yielder.Current;
+				this.MoveNext = function ()
+				{
+						try
+						{
+								switch (state)
+								{
+										case State.Before:
+												state = State.Running;
+												initialize(); // fall through
+										case State.Running:
+												if (tryGetNext.apply(yielder))
+												{
+														return true;
+												}
+												else
+												{
+														this.Dispose();
+														return false;
+												}
+										case State.After:
+												return false;
+								}
+						}
+						catch (e)
+						{
+								this.Dispose();
+								throw e;
+						}
+				}
+				this.Dispose = function ()
+				{
+						if (state != State.Running) return;
+
+						try { dispose(); }
+						finally { state = State.After; }
+				}
+		}
+
+		// for tryGetNext
+		var Yielder = function ()
+		{
+				var current = null;
+				this.Current = function () { return current; }
+				this.Yield = function (value)
+				{
+						current = value;
+						return true;
+				}
+		}
+
+		// for OrderBy/ThenBy
+
+		var OrderedEnumerable = function (source, keySelector, descending, parent)
+		{
+				this.source = source;
+				this.keySelector = Utils.CreateLambda(keySelector);
+				this.descending = descending;
+				this.parent = parent;
+		}
+		OrderedEnumerable.prototype = new Enumerable();
+
+		OrderedEnumerable.prototype.CreateOrderedEnumerable = function (keySelector, descending)
+		{
+				return new OrderedEnumerable(this.source, keySelector, descending, this);
+		}
+
+		OrderedEnumerable.prototype.ThenBy = function (keySelector)
+		{
+				return this.CreateOrderedEnumerable(keySelector, false);
+		}
+
+		OrderedEnumerable.prototype.ThenByDescending = function (keySelector)
+		{
+				return this.CreateOrderedEnumerable(keySelector, true);
+		}
+
+		OrderedEnumerable.prototype.GetEnumerator = function ()
+		{
+				var self = this;
+				var buffer;
+				var indexes;
+				var index = 0;
+
+				return new IEnumerator(
+						function ()
+						{
+								buffer = [];
+								indexes = [];
+								self.source.ForEach(function (item, index)
+								{
+										buffer.push(item);
+										indexes.push(index);
+								});
+								var sortContext = SortContext.Create(self, null);
+								sortContext.GenerateKeys(buffer);
+
+								indexes.sort(function (a, b) { return sortContext.Compare(a, b); });
+						},
+						function ()
+						{
+								return (index < indexes.length)
+										? this.Yield(buffer[indexes[index++]])
+										: false;
+						},
+						Functions.Blank
+				)
+		}
+
+		var SortContext = function (keySelector, descending, child)
+		{
+				this.keySelector = keySelector;
+				this.descending = descending;
+				this.child = child;
+				this.keys = null;
+		}
+
+		SortContext.Create = function (orderedEnumerable, currentContext)
+		{
+				var context = new SortContext(orderedEnumerable.keySelector, orderedEnumerable.descending, currentContext);
+				if (orderedEnumerable.parent != null) return SortContext.Create(orderedEnumerable.parent, context);
+				return context;
+		}
+
+		SortContext.prototype.GenerateKeys = function (source)
+		{
+				var len = source.length;
+				var keySelector = this.keySelector;
+				var keys = new Array(len);
+				for (var i = 0; i < len; i++) keys[i] = keySelector(source[i]);
+				this.keys = keys;
+
+				if (this.child != null) this.child.GenerateKeys(source);
+		}
+
+		SortContext.prototype.Compare = function (index1, index2)
+		{
+				var comparison = Utils.Compare(this.keys[index1], this.keys[index2]);
+
+				if (comparison == 0)
+				{
+						if (this.child != null) return this.child.Compare(index1, index2)
+						comparison = Utils.Compare(index1, index2);
+				}
+
+				return (this.descending) ? -comparison : comparison;
+		}
+
+		// optimize array or arraylike object
+
+		var ArrayEnumerable = function (source)
+		{
+				this.source = source;
+		}
+		ArrayEnumerable.prototype = new Enumerable();
+
+		ArrayEnumerable.prototype.Any = function (predicate)
+		{
+				return (predicate == null)
+						? (this.source.length > 0)
+						: Enumerable.prototype.Any.apply(this, arguments);
+		}
+
+		ArrayEnumerable.prototype.Count = function (predicate)
+		{
+				return (predicate == null)
+						? this.source.length
+						: Enumerable.prototype.Count.apply(this, arguments);
+		}
+
+		ArrayEnumerable.prototype.ElementAt = function (index)
+		{
+				return (0 <= index && index < this.source.length)
+						? this.source[index]
+						: Enumerable.prototype.ElementAt.apply(this, arguments);
+		}
+
+		ArrayEnumerable.prototype.ElementAtOrDefault = function (index, defaultValue)
+		{
+				return (0 <= index && index < this.source.length)
+						? this.source[index]
+						: defaultValue;
+		}
+
+		ArrayEnumerable.prototype.First = function (predicate)
+		{
+				return (predicate == null && this.source.length > 0)
+						? this.source[0]
+						: Enumerable.prototype.First.apply(this, arguments);
+		}
+
+		ArrayEnumerable.prototype.FirstOrDefault = function (defaultValue, predicate)
+		{
+				if (predicate != null)
+				{
+						return Enumerable.prototype.FirstOrDefault.apply(this, arguments);
+				}
+
+				return this.source.length > 0 ? this.source[0] : defaultValue;
+		}
+
+		ArrayEnumerable.prototype.Last = function (predicate)
+		{
+				return (predicate == null && this.source.length > 0)
+						? this.source[this.source.length - 1]
+						: Enumerable.prototype.Last.apply(this, arguments);
+		}
+
+		ArrayEnumerable.prototype.LastOrDefault = function (defaultValue, predicate)
+		{
+				if (predicate != null)
+				{
+						return Enumerable.prototype.LastOrDefault.apply(this, arguments);
+				}
+
+				return this.source.length > 0 ? this.source[this.source.length - 1] : defaultValue;
+		}
+
+		ArrayEnumerable.prototype.Skip = function (count)
+		{
+				var source = this.source;
+
+				return new Enumerable(function ()
+				{
+						var index;
+
+						return new IEnumerator(
+								function () { index = (count < 0) ? 0 : count },
+								function ()
+								{
+										return (index < source.length)
+												? this.Yield(source[index++])
+												: false;
+								},
+								Functions.Blank);
+				});
+		};
+
+		ArrayEnumerable.prototype.TakeExceptLast = function (count)
+		{
+				if (count == null) count = 1;
+				return this.Take(this.source.length - count);
+		}
+
+		ArrayEnumerable.prototype.TakeFromLast = function (count)
+		{
+				return this.Skip(this.source.length - count);
+		}
+
+		ArrayEnumerable.prototype.Reverse = function ()
+		{
+				var source = this.source;
+
+				return new Enumerable(function ()
+				{
+						var index;
+
+						return new IEnumerator(
+								function ()
+								{
+										index = source.length;
+								},
+								function ()
+								{
+										return (index > 0)
+												? this.Yield(source[--index])
+												: false;
+								},
+								Functions.Blank)
+				});
+		}
+
+		ArrayEnumerable.prototype.SequenceEqual = function (second, compareSelector)
+		{
+				if ((second instanceof ArrayEnumerable || second instanceof Array)
+						&& compareSelector == null
+						&& Enumerable.From(second).Count() != this.Count())
+				{
+						return false;
+				}
+
+				return Enumerable.prototype.SequenceEqual.apply(this, arguments);
+		}
+
+		ArrayEnumerable.prototype.ToString = function (separator, selector)
+		{
+				if (selector != null || !(this.source instanceof Array))
+				{
+						return Enumerable.prototype.ToString.apply(this, arguments);
+				}
+
+				if (separator == null) separator = "";
+				return this.source.join(separator);
+		}
+
+		ArrayEnumerable.prototype.GetEnumerator = function ()
+		{
+				var source = this.source;
+				var index = 0;
+
+				return new IEnumerator(
+						Functions.Blank,
+						function ()
+						{
+								return (index < source.length)
+										? this.Yield(source[index++])
+										: false;
+						},
+						Functions.Blank);
+		}
+
+		// Collections
+
+		var Dictionary = (function ()
+		{
+				// static utility methods
+				var HasOwnProperty = function (target, key)
+				{
+						return Object.prototype.hasOwnProperty.call(target, key);
+				}
+
+				var ComputeHashCode = function (obj)
+				{
+						if (obj === null) return "null";
+						if (obj === undefined) return "undefined";
+
+						return (typeof obj.toString === Types.Function)
+								? obj.toString()
+								: Object.prototype.toString.call(obj);
+				}
+
+				// LinkedList for Dictionary
+				var HashEntry = function (key, value)
+				{
+						this.Key = key;
+						this.Value = value;
+						this.Prev = null;
+						this.Next = null;
+				}
+
+				var EntryList = function ()
+				{
+						this.First = null;
+						this.Last = null;
+				}
+				EntryList.prototype =
+				{
+						AddLast: function (entry)
+						{
+								if (this.Last != null)
+								{
+										this.Last.Next = entry;
+										entry.Prev = this.Last;
+										this.Last = entry;
+								}
+								else this.First = this.Last = entry;
+						},
+
+						Replace: function (entry, newEntry)
+						{
+								if (entry.Prev != null)
+								{
+										entry.Prev.Next = newEntry;
+										newEntry.Prev = entry.Prev;
+								}
+								else this.First = newEntry;
+
+								if (entry.Next != null)
+								{
+										entry.Next.Prev = newEntry;
+										newEntry.Next = entry.Next;
+								}
+								else this.Last = newEntry;
+
+						},
+
+						Remove: function (entry)
+						{
+								if (entry.Prev != null) entry.Prev.Next = entry.Next;
+								else this.First = entry.Next;
+
+								if (entry.Next != null) entry.Next.Prev = entry.Prev;
+								else this.Last = entry.Prev;
+						}
+				}
+
+				// Overload:function()
+				// Overload:function(compareSelector)
+				var Dictionary = function (compareSelector)
+				{
+						this.count = 0;
+						this.entryList = new EntryList();
+						this.buckets = {}; // as Dictionary<string,List<object>>
+						this.compareSelector = (compareSelector == null) ? Functions.Identity : compareSelector;
+				}
+
+				Dictionary.prototype =
+				{
+						Add: function (key, value)
+						{
+								var compareKey = this.compareSelector(key);
+								var hash = ComputeHashCode(compareKey);
+								var entry = new HashEntry(key, value);
+								if (HasOwnProperty(this.buckets, hash))
+								{
+										var array = this.buckets[hash];
+										for (var i = 0; i < array.length; i++)
+										{
+												if (this.compareSelector(array[i].Key) === compareKey)
+												{
+														this.entryList.Replace(array[i], entry);
+														array[i] = entry;
+														return;
+												}
+										}
+										array.push(entry);
+								}
+								else
+								{
+										this.buckets[hash] = [entry];
+								}
+								this.count++;
+								this.entryList.AddLast(entry);
+						},
+
+						Get: function (key)
+						{
+								var compareKey = this.compareSelector(key);
+								var hash = ComputeHashCode(compareKey);
+								if (!HasOwnProperty(this.buckets, hash)) return undefined;
+
+								var array = this.buckets[hash];
+								for (var i = 0; i < array.length; i++)
+								{
+										var entry = array[i];
+										if (this.compareSelector(entry.Key) === compareKey) return entry.Value;
+								}
+								return undefined;
+						},
+
+						Set: function (key, value)
+						{
+								var compareKey = this.compareSelector(key);
+								var hash = ComputeHashCode(compareKey);
+								if (HasOwnProperty(this.buckets, hash))
+								{
+										var array = this.buckets[hash];
+										for (var i = 0; i < array.length; i++)
+										{
+												if (this.compareSelector(array[i].Key) === compareKey)
+												{
+														var newEntry = new HashEntry(key, value);
+														this.entryList.Replace(array[i], newEntry);
+														array[i] = newEntry;
+														return true;
+												}
+										}
+								}
+								return false;
+						},
+
+						Contains: function (key)
+						{
+								var compareKey = this.compareSelector(key);
+								var hash = ComputeHashCode(compareKey);
+								if (!HasOwnProperty(this.buckets, hash)) return false;
+
+								var array = this.buckets[hash];
+								for (var i = 0; i < array.length; i++)
+								{
+										if (this.compareSelector(array[i].Key) === compareKey) return true;
+								}
+								return false;
+						},
+
+						Clear: function ()
+						{
+								this.count = 0;
+								this.buckets = {};
+								this.entryList = new EntryList();
+						},
+
+						Remove: function (key)
+						{
+								var compareKey = this.compareSelector(key);
+								var hash = ComputeHashCode(compareKey);
+								if (!HasOwnProperty(this.buckets, hash)) return;
+
+								var array = this.buckets[hash];
+								for (var i = 0; i < array.length; i++)
+								{
+										if (this.compareSelector(array[i].Key) === compareKey)
+										{
+												this.entryList.Remove(array[i]);
+												array.splice(i, 1);
+												if (array.length == 0) delete this.buckets[hash];
+												this.count--;
+												return;
+										}
+								}
+						},
+
+						Count: function ()
+						{
+								return this.count;
+						},
+
+						ToEnumerable: function ()
+						{
+								var self = this;
+								return new Enumerable(function ()
+								{
+										var currentEntry;
+
+										return new IEnumerator(
+												function () { currentEntry = self.entryList.First },
+												function ()
+												{
+														if (currentEntry != null)
+														{
+																var result = { Key: currentEntry.Key, Value: currentEntry.Value };
+																currentEntry = currentEntry.Next;
+																return this.Yield(result);
+														}
+														return false;
+												},
+												Functions.Blank);
+								});
+						}
+				}
+
+				return Dictionary;
+		})();
+
+		// dictionary = Dictionary<TKey, TValue[]>
+		var Lookup = function (dictionary)
+		{
+				this.Count = function ()
+				{
+						return dictionary.Count();
+				}
+
+				this.Get = function (key)
+				{
+						return Enumerable.From(dictionary.Get(key));
+				}
+
+				this.Contains = function (key)
+				{
+						return dictionary.Contains(key);
+				}
+
+				this.ToEnumerable = function ()
+				{
+						return dictionary.ToEnumerable().Select(function (kvp)
+						{
+								return new Grouping(kvp.Key, kvp.Value);
+						});
+				}
+		}
+
+		var Grouping = function (key, elements)
+		{
+				this.Key = function ()
+				{
+						return key;
+				}
+
+				ArrayEnumerable.call(this, elements);
+		}
+		Grouping.prototype = new ArrayEnumerable();
+
+		// out to global
+		return Enumerable;
 })()
 window['OneXrmjQuery'] = jQuery.noConflict(true);
 (function ($) {
@@ -12958,2861 +12958,2861 @@ window['OneXrmjQuery'] = jQuery.noConflict(true);
 
 
 var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
+		var extendStatics = Object.setPrototypeOf ||
+				({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+				function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+		return function (d, b) {
+				extendStatics(d, b);
+				function __() { this.constructor = d; }
+				d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+		};
 })();
 /** Singular Dynamics 365 JavaScript Library Version 8.2 */
 var OneXrm;
 (function (OneXrm) {
-    var MessagesBase = /** @class */ (function () {
-        function MessagesBase() {
-        }
-        /** Converts matching returned JSON objects to correct data types. */
-        /** @param key The key. */
-        /** @param value The value. */
-        MessagesBase.jsonReviver = function (key, value) {
-            // Convert dates from strings to Date objects
-            switch (typeof value) {
-                case "string":
-                    var a = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)Z$/.exec(value);
-                    if (a) {
-                        return new Date(Date.UTC(+a[1], +a[2] - 1, +a[3], +a[4], +a[5], +a[6]));
-                    }
-            }
-            return value;
-        };
-        /** Process a list of retrieved entities to convert to expected format. */
-        /** @param type The type of entity. */
-        /** @param entities The entities to process. */
-        MessagesBase.processRetrievedEntities = function (type, entities) {
-            for (var i = 0; i < entities.length; i++) {
-                var entity = entities[i];
-                var entityNew = new type(type.metadata.logicalName);
-                for (var attributeName in type.Attributes) {
-                    var attributeMetadata = type.Attributes[attributeName];
-                    var value = void 0;
-                    switch (attributeMetadata.attributeType) {
-                        case Metadata.AttributeTypeCode.Lookup:
-                        case Metadata.AttributeTypeCode.Owner:
-                            value = entity[["_", attributeMetadata.logicalName, "_value"].join("")];
-                            break;
-                        default:
-                            value = entity[attributeMetadata.logicalName];
-                            break;
-                    }
-                    if (value !== undefined) {
-                        if (value === null) {
-                            entityNew[attributeMetadata.logicalName] = null;
-                        }
-                        else {
-                            switch (attributeMetadata.attributeType) {
-                                case Metadata.AttributeTypeCode.BigInt:
-                                case Metadata.AttributeTypeCode.Boolean:
-                                case Metadata.AttributeTypeCode.DateTime:
-                                case Metadata.AttributeTypeCode.Decimal:
-                                case Metadata.AttributeTypeCode.Double:
-                                case Metadata.AttributeTypeCode.Integer:
-                                case Metadata.AttributeTypeCode.Money:
-                                case Metadata.AttributeTypeCode.Picklist:
-                                case Metadata.AttributeTypeCode.State:
-                                case Metadata.AttributeTypeCode.Status:
-                                    entityNew[attributeMetadata.logicalName] = {
-                                        value: value,
-                                        name: entity[[attributeMetadata.logicalName, "@OData.Community.Display.V1.FormattedValue"].join("")]
-                                    };
-                                    break;
-                                case Metadata.AttributeTypeCode.Lookup:
-                                case Metadata.AttributeTypeCode.Owner:
-                                    var logicalName = entity[["_", attributeMetadata.logicalName, "_value@Microsoft.Dynamics.CRM.lookuplogicalname"].join("")];
-                                    var type_1 = logicalName ? eval(["OneXrm.Entities.", logicalName].join("")) : undefined;
-                                    entityNew[attributeMetadata.logicalName] = new EntityReference(value, logicalName, entity[["_", attributeMetadata.logicalName, "_value@OData.Community.Display.V1.FormattedValue"].join("")], type_1);
-                                    break;
-                                case Metadata.AttributeTypeCode.Memo:
-                                case Metadata.AttributeTypeCode.String:
-                                case Metadata.AttributeTypeCode.Uniqueidentifier:
-                                    entityNew[attributeMetadata.logicalName] = value;
-                                    break;
-                                case Metadata.AttributeTypeCode.PartyList:
-                                    // TODO
-                                    break;
-                                case Metadata.AttributeTypeCode.Virtual:
-                                    entityNew[attributeMetadata.logicalName] = {
-                                        value: $.map(value.split(","), function (val) { return parseInt(val, 10); }),
-                                        name: $.map(entity[[attributeMetadata.logicalName, "@OData.Community.Display.V1.FormattedValue"].join("")].split(";"), function (val) { return val.trim(); })
-                                    };
-                                    break;
-                                default:
-                                    alert(["OneXrm.Messages.processRetrievedEntities: Unhandled attribute type: ", attributeMetadata.attributeType].join(""));
-                                    break;
-                            }
-                        }
-                    }
-                }
-                entities[i] = entityNew;
-            }
-            return entities;
-        };
-        return MessagesBase;
-    }());
-    /** Microsoft.Crm.Sdk.Messages JavaScript equivalent providing access to asynchronous Web API operations */
-    var Messages = /** @class */ (function (_super) {
-        __extends(Messages, _super);
-        function Messages() {
-            return _super !== null && _super.apply(this, arguments) || this;
-        }
-        /** Query the webAPI. */
-        /** @param method The method. */
-        /** @param webAPIQuery The Web API query. */
-        /** @param data The data. */
-        /** @param requestHeaders The request headers. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.queryWebAPI = function (method, webAPIQuery, data, requestHeaders, successCallback, errorCallback) {
-            var settings = {
-                url: encodeURI([Page.getWebAPIPath(), webAPIQuery].join("")),
-                contentType: "application/json; charset=utf-8",
-                dataType: "json",
-                method: method,
-                beforeSend: function (request) {
-                    if (requestHeaders) {
-                        for (var _i = 0, requestHeaders_1 = requestHeaders; _i < requestHeaders_1.length; _i++) {
-                            var requestHeader = requestHeaders_1[_i];
-                            request.setRequestHeader(requestHeader.header, requestHeader.value);
-                        }
-                    }
-                },
-                success: function (data, textStatus, jqXHR) {
-                    if (successCallback) {
-                        successCallback(data, textStatus, jqXHR);
-                    }
-                },
-                error: function (jqXHR, textStatus, errorThrown) {
-                    if (errorCallback) {
-                        errorCallback(jqXHR, textStatus, errorThrown);
-                    }
-                }
-            };
-            if (data) {
-                settings.data = data;
-            }
-            return $.ajax(settings);
-        };
-        /** Retrieve the entity according to the supplied Web API query. */
-        /** @param type The type of entity. */
-        /** @param webAPIQuery The Web API query. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.retrieveWebAPI = function (type, webAPIQuery, successCallback, errorCallback) {
-            return Messages.queryWebAPI("GET", webAPIQuery, null, [
-                { header: "OData-MaxVersion", value: "4.0" },
-                { header: "OData-Version", value: "4.0" },
-                { header: "Prefer", value: 'odata.include-annotations="*"' }
-            ], function (data, textStatus, jqXHR) {
-                if (successCallback) {
-                    successCallback(Messages.processRetrievedEntities(type, [JSON.parse(jqXHR.responseText, Messages.jsonReviver)])[0]);
-                }
-            }, function (jqXHR, textStatus, errorThrown) {
-                if (errorCallback) {
-                    errorCallback(new Error(jqXHR.responseJSON.error.message));
-                }
-            });
-        };
-        /** Retrieve the supplied entity with the supplied id. */
-        /** @param type The type of entity. */
-        /** @param id The id of the entity to retrieve. */
-        /** @param columns The columns to retrieve. Supply null to retrieve all columns. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.retrieve = function (type, id, columns, successCallback, errorCallback) {
-            if (columns === void 0) { columns = null; }
-            var parameters = [];
-            if (columns) {
-                var columnSet = new Query.ColumnSet(columns);
-                if (!columnSet.allColumns) {
-                    parameters.push(["$select=", columnSet.webAPI].join(""));
-                }
-            }
-            var query = ["/", type.metadata.logicalCollectionName, "(", new Guid(id).toString("D"), ")"].join("");
-            if (parameters.length > 0) {
-                query += ["?", parameters.join("&")].join("");
-            }
-            return Messages.retrieveWebAPI(type, query, successCallback, errorCallback);
-        };
-        /** Retrieve the entities according to the supplied Web API query. */
-        /** @param type The type of entity. */
-        /** @param webAPIQuery The Web API query. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.retrieveMultipleWebAPI = function (type, webAPIQuery, successCallback, errorCallback) {
-            return Messages.queryWebAPI("GET", webAPIQuery, null, [
-                { header: "OData-MaxVersion", value: "4.0" },
-                { header: "OData-Version", value: "4.0" },
-                { header: "Prefer", value: 'odata.include-annotations="*"' }
-            ], function (data, textStatus, jqXHR) {
-                if (successCallback) {
-                    successCallback(Messages.processRetrievedEntities(type, JSON.parse(jqXHR.responseText, Messages.jsonReviver).value));
-                }
-            }, function (jqXHR, textStatus, errorThrown) {
-                if (errorCallback) {
-                    errorCallback(new Error(jqXHR.responseJSON.error.message));
-                }
-            });
-        };
-        /** Retrieve the entities according to the supplied query expression. */
-        /** @param type The type of entity. */
-        /** @param query The query expression. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.retrieveMultipleQuery = function (type, query, successCallback, errorCallback) {
-            return Messages.retrieveMultipleWebAPI(type, query.fetchXML, successCallback, errorCallback);
-        };
-        /** Retrieve the supplied entities according to the supplied query. */
-        /** @param type The type of entity. */
-        /** @param criteria The criteria. */
-        /** @param orders The order expressions. */
-        /** @param columns The columns to retrieve. Supply null to retrieve all columns. */
-        /** @param top The number of records to retrieve. Supply null to retrieve all records. */
-        /** @param linkedEntities The linked entities. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.retrieveMultiple = function (type, criteria, orders, columns, top, linkedEntities, successCallback, errorCallback) {
-            if (criteria === void 0) { criteria = new Query.FilterExpression(); }
-            if (orders === void 0) { orders = []; }
-            if (columns === void 0) { columns = null; }
-            if (top === void 0) { top = null; }
-            if (linkedEntities === void 0) { linkedEntities = []; }
-            var query = new Query.QueryExpression(type);
-            query.columnSet = new Query.ColumnSet(columns);
-            query.criteria = criteria;
-            query.orders = orders;
-            query.top = top;
-            query.linkedEntities = linkedEntities;
-            return Messages.retrieveMultipleQuery(type, query, successCallback, errorCallback);
-        };
-        /** Create the supplied entity. */
-        /** @param entity The entity to create. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.create = function (entity, successCallback, errorCallback) {
-            return Messages.createWebAPI(entity, null, successCallback, errorCallback);
-        };
-        /** Create the supplied entity and appends the supplied Web API query options. */
-        /** @param entity The entity to create. */
-        /** @param webAPIQueryOptions The Web API query options. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.createWebAPI = function (entity, webAPIQueryOptions, successCallback, errorCallback) {
-            var uri = ["/", entity.logicalName, "s"].join("");
-            if (webAPIQueryOptions) {
-                uri += ["?", webAPIQueryOptions].join("");
-            }
-            return Messages.queryWebAPI("POST", uri, JSON.stringify(entity.objectForOperations), [
-                { header: "OData-MaxVersion", value: "4.0" },
-                { header: "OData-Version", value: "4.0" }
-            ], function (data, textStatus, jqXHR) {
-                if (successCallback) {
-                    var entityId = jqXHR.getResponseHeader("OData-EntityId");
-                    entityId = entityId.substr(entityId.indexOf("(") + 1, 36);
-                    entity.id = entityId;
-                    successCallback(entityId);
-                }
-            }, function (jqXHR, textStatus, errorThrown) {
-                if (errorCallback) {
-                    errorCallback(new Error(jqXHR.responseJSON.error.message));
-                }
-            });
-        };
-        /** Update the supplied entity. */
-        /** @param entity The entity to update. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.update = function (entity, successCallback, errorCallback) {
-            return Messages.updateWebAPI(entity, null, successCallback, errorCallback);
-        };
-        /** Update the supplied entity and appends the supplied Web API query options. */
-        /** @param entity The entity to update. */
-        /** @param webAPIQueryOptions The Web API query options. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.updateWebAPI = function (entity, webAPIQueryOptions, successCallback, errorCallback) {
-            var uri = ["/", entity.entityType.metadata.logicalCollectionName, "(", entity.id, ")"].join("");
-            if (webAPIQueryOptions) {
-                uri += ["?", webAPIQueryOptions].join("");
-            }
-            return Messages.queryWebAPI("PATCH", uri, JSON.stringify(entity.objectForOperations), [
-                { header: "OData-MaxVersion", value: "4.0" },
-                { header: "OData-Version", value: "4.0" }
-            ], function (data, textStatus, jqXHR) {
-                if (successCallback) {
-                    var entityId = jqXHR.getResponseHeader("OData-EntityId");
-                    entityId = entityId.substr(entityId.indexOf("(") + 1, 36);
-                    entity.id = entityId;
-                    successCallback(entityId);
-                }
-            }, function (jqXHR, textStatus, errorThrown) {
-                if (errorCallback) {
-                    errorCallback(new Error(jqXHR.responseJSON.error.message));
-                }
-            });
-        };
-        /** Upserts the supplied entity. */
-        /** @param entity The entity to update. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.upsert = function (entity, successCallback, errorCallback) {
-            return Messages.updateWebAPI(entity, null, successCallback, errorCallback);
-        };
-        /** Upsert the supplied entity and appends the supplied Web API query options. */
-        /** @param entity The entity to update. */
-        /** @param webAPIQueryOptions The Web API query options. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.upsertWebAPI = function (entity, webAPIQueryOptions, successCallback, errorCallback) {
-            var uri = ["/", entity.entityType.metadata.logicalCollectionName, "(", entity.id, ")"].join("");
-            if (webAPIQueryOptions) {
-                uri += ["?", webAPIQueryOptions].join("");
-            }
-            return Messages.queryWebAPI("PATCH", uri, JSON.stringify(entity.objectForOperations), [
-                { header: "OData-MaxVersion", value: "4.0" },
-                { header: "OData-Version", value: "4.0" }
-            ], function (data, textStatus, jqXHR) {
-                if (successCallback) {
-                    var entityId = jqXHR.getResponseHeader("OData-EntityId");
-                    entityId = entityId.substr(entityId.indexOf("(") + 1, 36);
-                    entity.id = entityId;
-                    successCallback(entityId);
-                }
-            }, function (jqXHR, textStatus, errorThrown) {
-                if (errorCallback) {
-                    errorCallback(new Error(jqXHR.responseJSON.error.message));
-                }
-            });
-        };
-        /** Delete the supplied entity. */
-        /** @param type The type of entity to delete. */
-        /** @param id The id of the entity to delete. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.delete = function (type, id, successCallback, errorCallback) {
-            var uri = ["/", type.metadata.logicalCollectionName, "(", id, ")"].join("");
-            return Messages.queryWebAPI("DELETE", uri, null, [
-                { header: "OData-MaxVersion", value: "4.0" },
-                { header: "OData-Version", value: "4.0" }
-            ], function (data, textStatus, jqXHR) {
-                if (successCallback) {
-                    successCallback(id);
-                }
-            }, function (jqXHR, textStatus, errorThrown) {
-                if (errorCallback) {
-                    errorCallback(new Error(jqXHR.responseJSON.error.message));
-                }
-            });
-        };
-        /** Associate the target entity with the related entity in the supplied relationship. */
-        /** @param navigationProperty The naigation property. */
-        /** @param targetType The target entity type. */
-        /** @param targetId The target entity Id. */
-        /** @param relatedEntityType The related entity name. */
-        /** @param relatedEntityId The related entity id. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.associate = function (navigationProperty, targetType, targetId, relatedEntityType, relatedEntityId, successCallback, errorCallback) {
-            var uri = ["/", targetType.metadata.logicalCollectionName, "(", targetId, ")/", navigationProperty, "/$ref"].join("");
-            return Messages.queryWebAPI("POST", uri, JSON.stringify({
-                "@odata.id": [Page.getWebAPIPath(), "/", relatedEntityType.metadata.logicalCollectionName, "(", relatedEntityId, ")"].join("")
-            }), [
-                { header: "OData-MaxVersion", value: "4.0" },
-                { header: "OData-Version", value: "4.0" }
-            ], function (data, textStatus, jqXHR) {
-                if (successCallback) {
-                    successCallback();
-                }
-            }, function (jqXHR, textStatus, errorThrown) {
-                if (errorCallback) {
-                    errorCallback(new Error(jqXHR.responseJSON.error.message));
-                }
-            });
-        };
-        /** Disassociate the target entity with the related entity in the supplied relationship.
-            For a collection-valued (N:N) navigation property, supply related entity information.
-            For a single valued (N:1) navigation property, do not supply related entity information.
-        */
-        /** @param navigationProperty The naigation property. */
-        /** @param targetEntityName The target entity name. */
-        /** @param targetEntityName The target entity Id. */
-        /** @param targetEntityName The related entity name. */
-        /** @param targetEntityName The related entity id. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.disassociate = function (navigationProperty, targetType, targetId, relatedEntityType, relatedEntityId, successCallback, errorCallback) {
-            var uri = ["/", targetType.metadata.logicalCollectionName, "(", targetId, ")/", navigationProperty, "/$ref"].join("");
-            if (relatedEntityType && relatedEntityId) {
-                uri += ["?$id=", Page.getWebAPIPath(), "/", relatedEntityType.metadata.logicalCollectionName, "(", relatedEntityId, ")"].join("");
-            }
-            return Messages.queryWebAPI("DELETE", uri, null, [
-                { header: "OData-MaxVersion", value: "4.0" },
-                { header: "OData-Version", value: "4.0" }
-            ], function (data, textStatus, jqXHR) {
-                if (successCallback) {
-                    successCallback();
-                }
-            }, function (jqXHR, textStatus, errorThrown) {
-                if (errorCallback) {
-                    errorCallback(new Error(jqXHR.responseJSON.error.message));
-                }
-            });
-        };
-        /** Set the state of the entity. */
-        /** @param type The type of entity. */
-        /** @param id The id of the entity. */
-        /** @param statecode The statecode. */
-        /** @param statuscode The statuscode. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Messages.setState = function (type, id, statecode, statuscode, successCallback, errorCallback) {
-            return Messages.queryWebAPI("PATCH", ["/", type.metadata.logicalCollectionName, "(", new Guid(id).toString("D"), ")"].join(""), JSON.stringify({
-                statecode: statecode,
-                statuscode: statuscode
-            }), [
-                { header: "OData-MaxVersion", value: "4.0" },
-                { header: "OData-Version", value: "4.0" },
-                { header: "Accept", value: "application/json" },
-                { header: "Content-Type", value: "application/json; charset=utf-8" }
-            ], function (data, textStatus, jqXHR) {
-                if (successCallback) {
-                    successCallback();
-                }
-            }, function (jqXHR, textStatus, errorThrown) {
-                if (errorCallback) {
-                    errorCallback(new Error(jqXHR.responseJSON.error.message));
-                }
-            });
-        };
-        return Messages;
-    }(MessagesBase));
-    OneXrm.Messages = Messages;
-    (function (Messages) {
-        /** Microsoft.Crm.Sdk.Messages JavaScript equivalent providing access to selected synchronous Web API operations
-        NOTE: Synchronous Web API calls MAY ONLY be made for ribbon button enablement rules that require synchronous calls
-        */
-        var Synchronous = /** @class */ (function (_super) {
-            __extends(Synchronous, _super);
-            function Synchronous() {
-                return _super !== null && _super.apply(this, arguments) || this;
-            }
-            /** Query the webAPI. */
-            /** @param method The method. */
-            /** @param webAPIQuery The Web API query. */
-            /** @param data The data. */
-            /** @param requestHeaders The request headers. */
-            Synchronous.queryWebAPI = function (method, webAPIQuery, data, requestHeaders) {
-                var settings = {
-                    url: encodeURI([Page.getWebAPIPath(), webAPIQuery].join("")),
-                    async: false,
-                    contentType: "application/json; charset=utf-8",
-                    dataType: "json",
-                    method: method,
-                    beforeSend: function (request) {
-                        if (requestHeaders) {
-                            for (var _i = 0, requestHeaders_2 = requestHeaders; _i < requestHeaders_2.length; _i++) {
-                                var requestHeader = requestHeaders_2[_i];
-                                request.setRequestHeader(requestHeader.header, requestHeader.value);
-                            }
-                        }
-                    },
-                };
-                if (data) {
-                    settings.data = data;
-                }
-                return $.ajax(settings);
-            };
-            /** Retrieve the entity according to the supplied Web API query. */
-            /** @param type The type of entity. */
-            /** @param webAPIQuery The Web API query. */
-            Synchronous.retrieveWebAPI = function (type, webAPIQuery) {
-                var response = Synchronous.queryWebAPI("GET", webAPIQuery, null, [
-                    { header: "OData-MaxVersion", value: "4.0" },
-                    { header: "OData-Version", value: "4.0" },
-                    { header: "Prefer", value: 'odata.include-annotations="*"' }
-                ]);
-                return Synchronous.processRetrievedEntities(type, [JSON.parse(response.responseText, Messages.jsonReviver)])[0];
-            };
-            /** Retrieve the supplied entity with the supplied id. */
-            /** @param type The type of entity. */
-            /** @param id The id of the entity to retrieve. */
-            /** @param columns The columns to retrieve. Supply null to retrieve all columns. */
-            Synchronous.retrieve = function (type, id, columns) {
-                if (columns === void 0) { columns = null; }
-                var parameters = [];
-                if (columns) {
-                    var columnSet = new Query.ColumnSet(columns);
-                    if (!columnSet.allColumns) {
-                        parameters.push(["$select=", columnSet.webAPI].join(""));
-                    }
-                }
-                var query = ["/", type.metadata.logicalCollectionName, "(", new Guid(id).toString("D"), ")"].join("");
-                if (parameters.length > 0) {
-                    query += ["?", parameters.join("&")].join("");
-                }
-                return Messages.Synchronous.retrieveWebAPI(type, query);
-            };
-            /** Retrieve the entities according to the supplied Web API query. */
-            /** @param type The type of entity. */
-            /** @param webAPIQuery The Web API query. */
-            Synchronous.retrieveMultipleWebAPI = function (type, webAPIQuery) {
-                var response = Synchronous.queryWebAPI("GET", webAPIQuery, null, [
-                    { header: "OData-MaxVersion", value: "4.0" },
-                    { header: "OData-Version", value: "4.0" },
-                    { header: "Prefer", value: 'odata.include-annotations="*"' }
-                ]);
-                return Synchronous.processRetrievedEntities(type, JSON.parse(response.responseText, Messages.jsonReviver).value);
-            };
-            /** Retrieve the entities according to the supplied query expression. */
-            /** @param type The type of entity. */
-            /** @param query The query expression. */
-            Synchronous.retrieveMultipleQuery = function (type, query) {
-                return Synchronous.retrieveMultipleWebAPI(type, query.fetchXML);
-            };
-            /** Retrieve the supplied entities according to the supplied query. */
-            /** @param type The type of entity. */
-            /** @param criteria The criteria. */
-            /** @param orders The order expressions. */
-            /** @param columns The columns to retrieve. Supply null to retrieve all columns. */
-            /** @param top The number of records to retrieve. Supply null to retrieve all records. */
-            /** @param linkedEntities The linked entities. */
-            Synchronous.retrieveMultiple = function (type, criteria, orders, columns, top, linkedEntities) {
-                if (criteria === void 0) { criteria = new Query.FilterExpression(); }
-                if (orders === void 0) { orders = []; }
-                if (columns === void 0) { columns = null; }
-                if (top === void 0) { top = null; }
-                if (linkedEntities === void 0) { linkedEntities = []; }
-                var query = new Query.QueryExpression(type);
-                query.columnSet = new Query.ColumnSet(columns);
-                query.criteria = criteria;
-                query.orders = orders;
-                query.top = top;
-                query.linkedEntities = linkedEntities;
-                return Synchronous.retrieveMultipleQuery(type, query);
-            };
-            return Synchronous;
-        }(MessagesBase));
-        Messages.Synchronous = Synchronous;
-    })(Messages = OneXrm.Messages || (OneXrm.Messages = {}));
-    /** Microsoft.Xrm.Sdk.Query JavaScript equivalent */
-    var Query = /** @class */ (function () {
-        function Query() {
-        }
-        return Query;
-    }());
-    OneXrm.Query = Query;
-    (function (Query) {
-        var LogicalOperator;
-        (function (LogicalOperator) {
-            LogicalOperator[LogicalOperator["And"] = 0] = "And";
-            LogicalOperator[LogicalOperator["Or"] = 1] = "Or";
-        })(LogicalOperator = Query.LogicalOperator || (Query.LogicalOperator = {}));
-        var ConditionOperator;
-        (function (ConditionOperator) {
-            ConditionOperator[ConditionOperator["Between"] = 0] = "Between";
-            ConditionOperator[ConditionOperator["Equal"] = 1] = "Equal";
-            ConditionOperator[ConditionOperator["EqualBusinessId"] = 2] = "EqualBusinessId";
-            ConditionOperator[ConditionOperator["EqualUserId"] = 3] = "EqualUserId";
-            ConditionOperator[ConditionOperator["EqualUserLanguage"] = 4] = "EqualUserLanguage";
-            ConditionOperator[ConditionOperator["GreaterEqual"] = 5] = "GreaterEqual";
-            ConditionOperator[ConditionOperator["GreaterThan"] = 6] = "GreaterThan";
-            ConditionOperator[ConditionOperator["In"] = 7] = "In";
-            ConditionOperator[ConditionOperator["Last7Days"] = 8] = "Last7Days";
-            ConditionOperator[ConditionOperator["LastMonth"] = 9] = "LastMonth";
-            ConditionOperator[ConditionOperator["LastWeek"] = 10] = "LastWeek";
-            ConditionOperator[ConditionOperator["LastXDays"] = 11] = "LastXDays";
-            ConditionOperator[ConditionOperator["LastXHours"] = 12] = "LastXHours";
-            ConditionOperator[ConditionOperator["LastXMonths"] = 13] = "LastXMonths";
-            ConditionOperator[ConditionOperator["LastXWeeks"] = 14] = "LastXWeeks";
-            ConditionOperator[ConditionOperator["LastXYears"] = 15] = "LastXYears";
-            ConditionOperator[ConditionOperator["LastYear"] = 16] = "LastYear";
-            ConditionOperator[ConditionOperator["LessEqual"] = 17] = "LessEqual";
-            ConditionOperator[ConditionOperator["LessThan"] = 18] = "LessThan";
-            ConditionOperator[ConditionOperator["Like"] = 19] = "Like";
-            ConditionOperator[ConditionOperator["Next7Days"] = 20] = "Next7Days";
-            ConditionOperator[ConditionOperator["NextMonth"] = 21] = "NextMonth";
-            ConditionOperator[ConditionOperator["NextWeek"] = 22] = "NextWeek";
-            ConditionOperator[ConditionOperator["NextXDays"] = 23] = "NextXDays";
-            ConditionOperator[ConditionOperator["NextXHours"] = 24] = "NextXHours";
-            ConditionOperator[ConditionOperator["NextXMonths"] = 25] = "NextXMonths";
-            ConditionOperator[ConditionOperator["NextXWeeks"] = 26] = "NextXWeeks";
-            ConditionOperator[ConditionOperator["NextXYears"] = 27] = "NextXYears";
-            ConditionOperator[ConditionOperator["NextYear"] = 28] = "NextYear";
-            ConditionOperator[ConditionOperator["NotBetween"] = 29] = "NotBetween";
-            ConditionOperator[ConditionOperator["NotEqual"] = 30] = "NotEqual";
-            ConditionOperator[ConditionOperator["NotEqualBusinessId"] = 31] = "NotEqualBusinessId";
-            ConditionOperator[ConditionOperator["NotEqualUserId"] = 32] = "NotEqualUserId";
-            ConditionOperator[ConditionOperator["NotIn"] = 33] = "NotIn";
-            ConditionOperator[ConditionOperator["NotLike"] = 34] = "NotLike";
-            ConditionOperator[ConditionOperator["NotNull"] = 35] = "NotNull";
-            ConditionOperator[ConditionOperator["NotOn"] = 36] = "NotOn";
-            ConditionOperator[ConditionOperator["Null"] = 37] = "Null";
-            ConditionOperator[ConditionOperator["OlderThanXMonths"] = 38] = "OlderThanXMonths";
-            ConditionOperator[ConditionOperator["On"] = 39] = "On";
-            ConditionOperator[ConditionOperator["OnOrAfter"] = 40] = "OnOrAfter";
-            ConditionOperator[ConditionOperator["OnOrBefore"] = 41] = "OnOrBefore";
-            ConditionOperator[ConditionOperator["ThisMonth"] = 42] = "ThisMonth";
-            ConditionOperator[ConditionOperator["ThisWeek"] = 43] = "ThisWeek";
-            ConditionOperator[ConditionOperator["ThisYear"] = 44] = "ThisYear";
-            ConditionOperator[ConditionOperator["Today"] = 45] = "Today";
-            ConditionOperator[ConditionOperator["Tomorrow"] = 46] = "Tomorrow";
-            ConditionOperator[ConditionOperator["Yesterday"] = 47] = "Yesterday";
-        })(ConditionOperator = Query.ConditionOperator || (Query.ConditionOperator = {}));
-        var OrderType;
-        (function (OrderType) {
-            OrderType[OrderType["Ascending"] = 0] = "Ascending";
-            OrderType[OrderType["Descending"] = 1] = "Descending";
-        })(OrderType = Query.OrderType || (Query.OrderType = {}));
-        var QueryExpression = /** @class */ (function () {
-            /** Initializes a new instance of the OneXrm.Query.QueryExpression class. */
-            /** @param type The type of entity to retrieve. */
-            /** @param columnSet The column set. */
-            /** @param criteria The filter expressions. */
-            /** @param orders The order expressions. */
-            /** @param top The number of records to retrieve. Supply null to retrieve all records. */
-            /** @param linkedEntities The linked entities. */
-            function QueryExpression(type, columnSet, criteria, orders, top, linkedEntities) {
-                if (columnSet === void 0) { columnSet = new ColumnSet(null); }
-                if (criteria === void 0) { criteria = new FilterExpression(); }
-                if (orders === void 0) { orders = []; }
-                if (top === void 0) { top = null; }
-                if (linkedEntities === void 0) { linkedEntities = []; }
-                this.type = type;
-                this.columnSet = columnSet;
-                this.criteria = criteria;
-                this.linkedEntities = linkedEntities;
-                this.orders = orders;
-                this.top = top;
-            }
-            Object.defineProperty(QueryExpression.prototype, "fetchXML", {
-                get: function () {
-                    var fetchXML = [];
-                    fetchXML.push(['<fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false"', this.top ? [' count="', this.top, '"'].join("") : "", ' >'].join(""));
-                    fetchXML.push(['<entity name="', this.type.metadata.logicalName, '">'].join(""));
-                    fetchXML.push(this.columnSet ? this.columnSet.fetchXML : '<all-attributes />');
-                    if (this.orders) {
-                        for (var _i = 0, _a = this.orders; _i < _a.length; _i++) {
-                            var order = _a[_i];
-                            fetchXML.push(order.fetchXML);
-                        }
-                    }
-                    if (this.criteria) {
-                        fetchXML.push(this.criteria.fetchXML);
-                    }
-                    if (this.linkedEntities) {
-                        for (var _b = 0, _c = this.linkedEntities; _b < _c.length; _b++) {
-                            var linkEntity = _c[_b];
-                            fetchXML.push(linkEntity.fetchXML);
-                        }
-                    }
-                    fetchXML.push('</entity>');
-                    fetchXML.push('</fetch>');
-                    var query = [
-                        "/",
-                        this.type.metadata.logicalCollectionName,
-                        "?fetchXml=",
-                        fetchXML.join("")
-                    ].join("");
-                    return query;
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(QueryExpression.prototype, "webAPI", {
-                get: function () {
-                    var parameters = [];
-                    if (this.columnSet && !this.columnSet.allColumns) {
-                        parameters.push(["$select=", this.columnSet.webAPI].join(""));
-                    }
-                    if (this.criteria && this.criteria.conditions.length + this.criteria.filters.length > 0) {
-                        parameters.push(["$filter=", this.criteria.webAPI].join(""));
-                    }
-                    if (this.orders && this.orders.length > 0) {
-                        var orders = [];
-                        for (var _i = 0, _a = this.orders; _i < _a.length; _i++) {
-                            var order = _a[_i];
-                            orders.push(order.webAPI);
-                        }
-                        parameters.push(["$orderby=", orders.join(",")].join(""));
-                    }
-                    if (this.top) {
-                        parameters.push(["$top=", this.top].join(""));
-                    }
-                    var query = ["/", this.type.metadata.logicalCollectionName].join("");
-                    if (parameters.length > 0) {
-                        query += ["?", parameters.join("&")].join("");
-                    }
-                    return query;
-                },
-                enumerable: true,
-                configurable: true
-            });
-            return QueryExpression;
-        }());
-        Query.QueryExpression = QueryExpression;
-        var ColumnSet = /** @class */ (function () {
-            /** Initializes a new instance of the OneXrm.Query.ColumnSet class. */
-            /** @param columns The columns to retrieve. Supply null to retrieve all columns. */
-            function ColumnSet(columns) {
-                if (columns === void 0) { columns = null; }
-                this._columns = [];
-                this.columns = columns;
-            }
-            Object.defineProperty(ColumnSet.prototype, "columns", {
-                get: function () {
-                    return this._columns;
-                },
-                set: function (value) {
-                    this._columns = value;
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(ColumnSet.prototype, "allColumns", {
-                get: function () {
-                    return this.columns === null || this.columns.length === 0;
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(ColumnSet.prototype, "fetchXML", {
-                get: function () {
-                    if (!this.allColumns && this.columns instanceof Array) {
-                        var columns = [];
-                        for (var _i = 0, _a = this.columns; _i < _a.length; _i++) {
-                            var column = _a[_i];
-                            columns.push(['<attribute name="', column.logicalName, '" />'].join(""));
-                        }
-                        return columns.join("");
-                    }
-                    else {
-                        return "<all-attributes />";
-                    }
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(ColumnSet.prototype, "webAPI", {
-                get: function () {
-                    if (this.columns instanceof Array) {
-                        var columns = [];
-                        for (var _i = 0, _a = this.columns; _i < _a.length; _i++) {
-                            var column = _a[_i];
-                            switch (column.attributeType) {
-                                case Metadata.AttributeTypeCode.Lookup:
-                                case Metadata.AttributeTypeCode.Owner:
-                                    columns.push(["_", column.logicalName, "_value"].join(""));
-                                    break;
-                                default:
-                                    columns.push(column.logicalName);
-                                    break;
-                            }
-                        }
-                        return columns.join(",");
-                    }
-                    else {
-                        return "";
-                    }
-                },
-                enumerable: true,
-                configurable: true
-            });
-            return ColumnSet;
-        }());
-        Query.ColumnSet = ColumnSet;
-        var FilterExpression = /** @class */ (function () {
-            /** Initializes a new instance of the OneXrm.Query.FilterExpression class. */
-            /** @param filterOperator The filter operator. Defaults to OneXrm.Query.LogicalOperator.And. */
-            /** @param filters The list of filters. */
-            /** @param conditions The list of conditions. */
-            function FilterExpression(filterOperator, filters, conditions) {
-                if (filterOperator === void 0) { filterOperator = LogicalOperator.And; }
-                if (filters === void 0) { filters = []; }
-                if (conditions === void 0) { conditions = []; }
-                this.filterOperator = filterOperator;
-                this.filters = filters;
-                this.conditions = conditions;
-            }
-            Object.defineProperty(FilterExpression.prototype, "fetchXML", {
-                get: function () {
-                    var fetchXML = [];
-                    fetchXML.push(['<filter type="', this.filterOperator === LogicalOperator.And ? "and" : "or", '">'].join(""));
-                    if (this.filters) {
-                        for (var _i = 0, _a = this.filters; _i < _a.length; _i++) {
-                            var filter = _a[_i];
-                            fetchXML.push(filter.fetchXML);
-                        }
-                    }
-                    if (this.conditions) {
-                        for (var _b = 0, _c = this.conditions; _b < _c.length; _b++) {
-                            var condition = _c[_b];
-                            fetchXML.push(condition.fetchXML);
-                        }
-                    }
-                    fetchXML.push('</filter>');
-                    return fetchXML.join("");
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(FilterExpression.prototype, "webAPI", {
-                get: function () {
-                    var clauses = [];
-                    for (var _i = 0, _a = this.conditions; _i < _a.length; _i++) {
-                        var condition = _a[_i];
-                        clauses.push(condition.webAPI);
-                    }
-                    for (var _b = 0, _c = this.filters; _b < _c.length; _b++) {
-                        var filter = _c[_b];
-                        clauses.push(["(", filter.webAPI, ")"].join(""));
-                    }
-                    return clauses.join(this.filterOperator === LogicalOperator.And ? " and " : " or ");
-                },
-                enumerable: true,
-                configurable: true
-            });
-            return FilterExpression;
-        }());
-        Query.FilterExpression = FilterExpression;
-        var ConditionExpression = /** @class */ (function () {
-            /** Initializes a new instance of the OneXrm.Query.ConditionExpression class. */
-            /** @param attribute The attribute. */
-            /** @param conditionOperator The condition operator. */
-            /** @param values The value(s). */
-            function ConditionExpression(attribute, conditionOperator, values) {
-                if (values === void 0) { values = []; }
-                this.attribute = attribute;
-                this.conditionOperator = conditionOperator;
-                this.values = (values instanceof Array ? values : [values]);
-            }
-            Object.defineProperty(ConditionExpression.prototype, "fetchXML", {
-                get: function () {
-                    switch (this.values.length) {
-                        case 0: return ['<condition attribute="', this.attribute.logicalName, '" operator="', this.fetchXMLOperator(), '" />'].join("");
-                        case 1: return ['<condition attribute="', this.attribute.logicalName, '" operator="', this.fetchXMLOperator(), '" value="', this.values[0], '" />'].join("");
-                        default:
-                            var values = [];
-                            for (var _i = 0, _a = this.values; _i < _a.length; _i++) {
-                                var value = _a[_i];
-                                values.push(['<value>', value, '</value>'].join(""));
-                            }
-                            return ['<condition attribute="', this.attribute.logicalName, '" operator="', this.fetchXMLOperator(), '">', values.join(""), '</condition>'].join("");
-                    }
-                },
-                enumerable: true,
-                configurable: true
-            });
-            ConditionExpression.prototype.fetchXMLOperator = function () {
-                switch (this.conditionOperator) {
-                    case ConditionOperator.Between: return "between";
-                    case ConditionOperator.Equal: return "eq";
-                    case ConditionOperator.EqualBusinessId: return "eq-businessid";
-                    case ConditionOperator.EqualUserId: return "eq-userid";
-                    case ConditionOperator.EqualUserLanguage: return "eq-userlanguage";
-                    case ConditionOperator.GreaterEqual: return "ge";
-                    case ConditionOperator.GreaterThan: return "gt";
-                    case ConditionOperator.In: return "in";
-                    case ConditionOperator.Last7Days: return "last-seven-days";
-                    case ConditionOperator.LastMonth: return "last-month";
-                    case ConditionOperator.LastWeek: return "last-week";
-                    case ConditionOperator.LastXDays: return "last-x-days";
-                    case ConditionOperator.LastXHours: return "last-x-hours";
-                    case ConditionOperator.LastXMonths: return "last-x-months";
-                    case ConditionOperator.LastXWeeks: return "last-x-weeks";
-                    case ConditionOperator.LastXYears: return "last-x-years";
-                    case ConditionOperator.LastYear: return "last-year";
-                    case ConditionOperator.LessEqual: return "le";
-                    case ConditionOperator.LessThan: return "lt";
-                    case ConditionOperator.Like: return "like";
-                    case ConditionOperator.Next7Days: return "next-seven-days";
-                    case ConditionOperator.NextMonth: return "next-month";
-                    case ConditionOperator.NextWeek: return "next-week";
-                    case ConditionOperator.NextXDays: return "next-x-days";
-                    case ConditionOperator.NextXHours: return "next-x-hours";
-                    case ConditionOperator.NextXMonths: return "next-x-months";
-                    case ConditionOperator.NextXWeeks: return "next-x-weeks";
-                    case ConditionOperator.NextXYears: return "next-x-years";
-                    case ConditionOperator.NextYear: return "next-year";
-                    case ConditionOperator.NotBetween: return "not-between";
-                    case ConditionOperator.NotEqual: return "ne";
-                    case ConditionOperator.NotEqualBusinessId: return "ne-businessid";
-                    case ConditionOperator.NotEqualUserId: return "ne-userid";
-                    case ConditionOperator.NotIn: return "not-in";
-                    case ConditionOperator.NotLike: return "not-like";
-                    case ConditionOperator.NotNull: return "not-null";
-                    case ConditionOperator.NotOn: return "not-on";
-                    case ConditionOperator.Null: return "null";
-                    case ConditionOperator.OlderThanXMonths: return "older-than-x-months";
-                    case ConditionOperator.On: return "on";
-                    case ConditionOperator.OnOrAfter: return "on-or-after";
-                    case ConditionOperator.OnOrBefore: return "on-or-before";
-                    case ConditionOperator.ThisMonth: return "this-month";
-                    case ConditionOperator.ThisWeek: return "this-week";
-                    case ConditionOperator.ThisYear: return "this-year";
-                    case ConditionOperator.Today: return "today";
-                    case ConditionOperator.Tomorrow: return "tomorrow";
-                    case ConditionOperator.Yesterday: return "yesterday";
-                    default: throw new Error(["OneXrm.Query.ConditionExpression: Unhandled Operator: ", this.conditionOperator].join(""));
-                }
-            };
-            Object.defineProperty(ConditionExpression.prototype, "webAPI", {
-                get: function () {
-                    return [this.webAPIAttribute(), " ", this.webAPIOperator(), " ", this.webAPIValue()].join("");
-                },
-                enumerable: true,
-                configurable: true
-            });
-            ConditionExpression.prototype.webAPIAttribute = function () {
-                switch (this.attribute.attributeType) {
-                    case Metadata.AttributeTypeCode.Lookup: return ["_", this.attribute.logicalName, "_value"].join("");
-                    default: return this.attribute.logicalName;
-                }
-            };
-            ConditionExpression.prototype.webAPIOperator = function () {
-                switch (this.conditionOperator) {
-                    case ConditionOperator.Equal: return "eq";
-                    case ConditionOperator.GreaterEqual: return "ge";
-                    case ConditionOperator.GreaterThan: return "gt";
-                    case ConditionOperator.LessEqual: return "le";
-                    case ConditionOperator.LessThan: return "lt";
-                    case ConditionOperator.NotEqual: return "ne";
-                    // TODO: Operators
-                    default: throw new Error(["OneXrm.Query.ConditionExpression: Unhandled Operator: ", this.conditionOperator].join(""));
-                }
-            };
-            ConditionExpression.prototype.webAPIValue = function () {
-                switch (this.attribute.attributeType) {
-                    case Metadata.AttributeTypeCode.Lookup: return this.values[0];
-                    default:
-                        switch (typeof this.values[0]) {
-                            case "string": return ["'", this.values[0], "'"].join("");
-                            default: return this.values[0];
-                        }
-                }
-            };
-            return ConditionExpression;
-        }());
-        Query.ConditionExpression = ConditionExpression;
-        var OrderExpression = /** @class */ (function () {
-            /** Initializes a new instance of the OneXrm.Query.OrderExpression class. */
-            /** @param attribute The attribute. */
-            /** @param orderType The order type. Defaults to OneXrm.Query.OrderType.Ascending. */
-            function OrderExpression(attribute, orderType) {
-                if (orderType === void 0) { orderType = OrderType.Ascending; }
-                this.attribute = attribute;
-                this.orderType = orderType;
-            }
-            Object.defineProperty(OrderExpression.prototype, "fetchXML", {
-                get: function () {
-                    return ['<order attribute="', this.attribute.logicalName, '" descending="', this.orderType === OrderType.Descending ? "true" : "false", '" />'].join("");
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(OrderExpression.prototype, "webAPI", {
-                get: function () {
-                    return [this.attribute.logicalName, " ", this.orderType === OrderType.Descending ? "desc" : "asc"].join("");
-                },
-                enumerable: true,
-                configurable: true
-            });
-            return OrderExpression;
-        }());
-        Query.OrderExpression = OrderExpression;
-        var LinkEntity = /** @class */ (function () {
-            /** Initializes a new instance of the OneXrm.Query.LinkEntity class. */
-            /** @param parentAttribute The attribute to link from on the parent entity. */
-            /** @param type The type of entity to link to. */
-            /** @param attribute The attribute to link to. */
-            /** @param criteria The filter expressions. */
-            /** @param alias The alias. */
-            /** @param linkedEntities The linked entities. */
-            function LinkEntity(parentAttribute, type, attribute, criteria, alias, linkedEntities) {
-                if (criteria === void 0) { criteria = new FilterExpression(); }
-                if (linkedEntities === void 0) { linkedEntities = []; }
-                this.parentAttribute = parentAttribute;
-                this.type = type;
-                this.attribute = attribute;
-                this.criteria = criteria;
-                this.alias = alias;
-                this.linkedEntities = linkedEntities;
-            }
-            Object.defineProperty(LinkEntity.prototype, "fetchXML", {
-                get: function () {
-                    var fetchXML = [];
-                    fetchXML.push(['<link-entity name="', this.type.metadata.logicalName, '" from="', this.attribute.logicalName, '" to="', this.parentAttribute.logicalName, '"', this.alias ? [' alias="', this.alias, '"'].join("") : "", '>'].join(""));
-                    if (this.criteria) {
-                        fetchXML.push(this.criteria.fetchXML);
-                    }
-                    if (this.linkedEntities) {
-                        for (var _i = 0, _a = this.linkedEntities; _i < _a.length; _i++) {
-                            var linkEntity = _a[_i];
-                            fetchXML.push(linkEntity.fetchXML);
-                        }
-                    }
-                    fetchXML.push('</link-entity>');
-                    return fetchXML.join("");
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(LinkEntity.prototype, "webAPI", {
-                get: function () {
-                    throw new Error("OneXrm.Query.LinkEntity.webAPI not supported");
-                },
-                enumerable: true,
-                configurable: true
-            });
-            return LinkEntity;
-        }());
-        Query.LinkEntity = LinkEntity;
-    })(Query = OneXrm.Query || (OneXrm.Query = {}));
-    /** Microsoft.Xrm.Sdk.Entity JavaScript equivalent */
-    var Entity = /** @class */ (function () {
-        /** Initializes a new instance of the OneXrm.Entities.Account class. */
-        /** @param logicalName The logical name of the entity. */
-        function Entity(logicalName) {
-            this.entityType = Entity;
-            this.logicalName = logicalName;
-        }
-        Object.defineProperty(Entity.prototype, "objectForOperations", {
-            /** Gets the object for use in create/update operations. */
-            get: function () {
-                var entity = {};
-                for (var attributeName in this.entityType.Attributes) {
-                    var attributeMetadata = this.entityType.Attributes[attributeName];
-                    var attribute = this[attributeMetadata.logicalName];
-                    if (attribute !== undefined) {
-                        switch (attributeMetadata.attributeType) {
-                            case Metadata.AttributeTypeCode.Uniqueidentifier:
-                                // Ignore
-                                break;
-                            case Metadata.AttributeTypeCode.BigInt:
-                            case Metadata.AttributeTypeCode.Boolean:
-                            case Metadata.AttributeTypeCode.DateTime:
-                            case Metadata.AttributeTypeCode.Decimal:
-                            case Metadata.AttributeTypeCode.Double:
-                            case Metadata.AttributeTypeCode.Integer:
-                            case Metadata.AttributeTypeCode.Money:
-                            case Metadata.AttributeTypeCode.Picklist:
-                            case Metadata.AttributeTypeCode.State:
-                            case Metadata.AttributeTypeCode.Status:
-                                entity[attributeMetadata.logicalName] = (attribute === null ? null : attribute.value);
-                                break;
-                            case Metadata.AttributeTypeCode.Lookup:
-                            case Metadata.AttributeTypeCode.Owner:
-                                if (attribute === null) {
-                                    throw new Error("OneXrm: Lookup/Owner property cannot be set to null as part of a create/update operation. Use OneXrm.Messages.Disassociate instead.");
-                                }
-                                if (!attribute.type) {
-                                    throw new Error(["OneXrm: type property is required for operations on Lookup/Owner fields (", attributeMetadata.schemaName, ")."].join(""));
-                                }
-                                entity[[attributeMetadata.schemaName, "@odata.bind"].join("")] = ["/", attribute.type.metadata.logicalCollectionName, "(", attribute.id, ")"].join("");
-                                break;
-                            case Metadata.AttributeTypeCode.Memo:
-                            case Metadata.AttributeTypeCode.String:
-                                entity[attributeMetadata.logicalName] = attribute;
-                                break;
-                            case Metadata.AttributeTypeCode.PartyList:
-                                // TODO
-                                break;
-                            default:
-                                alert(["OneXrm.Entity.objectForOperations: Unhandled attribute type: ", attributeMetadata.attributeType].join(""));
-                                break;
-                        }
-                    }
-                }
-                return entity;
-            },
-            enumerable: true,
-            configurable: true
-        });
-        return Entity;
-    }());
-    OneXrm.Entity = Entity;
-    (function (Entity) {
-        var Attributes;
-        (function (Attributes) {
-            // Force instantiation of the module
-            var dummy;
-        })(Attributes = Entity.Attributes || (Entity.Attributes = {}));
-    })(Entity = OneXrm.Entity || (OneXrm.Entity = {}));
-    /** Microsoft.Xrm.Sdk.EntityReference JavaScript equivalent */
-    var EntityReference = /** @class */ (function () {
-        /** Initializes a new instance of the EntityReference class. */
-        /** @param id The id. */
-        /** @param logicalName The logical name of the entity. */
-        /** @param name The name. */
-        /** @param type The type. Only required if the field will be written to. */
-        function EntityReference(id, logicalName, name, type) {
-            this.id = new Guid(id).toString();
-            this.logicalName = logicalName;
-            this.name = name;
-            this.type = type;
-        }
-        return EntityReference;
-    }());
-    OneXrm.EntityReference = EntityReference;
-    /** Microsoft.Xrm.Sdk.Metadata JavaScript equivalent */
-    var Metadata = /** @class */ (function () {
-        function Metadata() {
-        }
-        return Metadata;
-    }());
-    OneXrm.Metadata = Metadata;
-    (function (Metadata) {
-        var AttributeTypeCode;
-        (function (AttributeTypeCode) {
-            AttributeTypeCode[AttributeTypeCode["Boolean"] = 0] = "Boolean";
-            AttributeTypeCode[AttributeTypeCode["Customer"] = 1] = "Customer";
-            AttributeTypeCode[AttributeTypeCode["DateTime"] = 2] = "DateTime";
-            AttributeTypeCode[AttributeTypeCode["Decimal"] = 3] = "Decimal";
-            AttributeTypeCode[AttributeTypeCode["Double"] = 4] = "Double";
-            AttributeTypeCode[AttributeTypeCode["Integer"] = 5] = "Integer";
-            AttributeTypeCode[AttributeTypeCode["Lookup"] = 6] = "Lookup";
-            AttributeTypeCode[AttributeTypeCode["Memo"] = 7] = "Memo";
-            AttributeTypeCode[AttributeTypeCode["Money"] = 8] = "Money";
-            AttributeTypeCode[AttributeTypeCode["Owner"] = 9] = "Owner";
-            AttributeTypeCode[AttributeTypeCode["PartyList"] = 10] = "PartyList";
-            AttributeTypeCode[AttributeTypeCode["Picklist"] = 11] = "Picklist";
-            AttributeTypeCode[AttributeTypeCode["State"] = 12] = "State";
-            AttributeTypeCode[AttributeTypeCode["Status"] = 13] = "Status";
-            AttributeTypeCode[AttributeTypeCode["String"] = 14] = "String";
-            AttributeTypeCode[AttributeTypeCode["Uniqueidentifier"] = 15] = "Uniqueidentifier";
-            AttributeTypeCode[AttributeTypeCode["CalendarRules"] = 16] = "CalendarRules";
-            AttributeTypeCode[AttributeTypeCode["Virtual"] = 17] = "Virtual";
-            AttributeTypeCode[AttributeTypeCode["BigInt"] = 18] = "BigInt";
-            AttributeTypeCode[AttributeTypeCode["ManagedProperty"] = 19] = "ManagedProperty";
-            AttributeTypeCode[AttributeTypeCode["EntityName"] = 20] = "EntityName";
-        })(AttributeTypeCode = Metadata.AttributeTypeCode || (Metadata.AttributeTypeCode = {}));
-        /** Microsoft.Xrm.Sdk.Metadata.EntityMetadata JavaScript equivalent */
-        var EntityMetadata = /** @class */ (function () {
-            function EntityMetadata() {
-            }
-            return EntityMetadata;
-        }());
-        Metadata.EntityMetadata = EntityMetadata;
-        /** Microsoft.Xrm.Sdk.Metadata.AttributeMetadata JavaScript equivalent */
-        var AttributeMetadata = /** @class */ (function () {
-            function AttributeMetadata() {
-            }
-            return AttributeMetadata;
-        }());
-        Metadata.AttributeMetadata = AttributeMetadata;
-    })(Metadata = OneXrm.Metadata || (OneXrm.Metadata = {}));
-    /** Utilities */
-    var Utils = /** @class */ (function () {
-        function Utils() {
-        }
-        /** Checks the supplied value object for empty string and replaces with the replament value if empty string. */
-        /** @param value The object to check for empty string. */
-        /** @param replace The value to replace with. */
-        Utils.cvEmptyString = function (value, replace) {
-            if (replace === void 0) { replace = null; }
-            if (value === "") {
-                return replace;
-            }
-            else {
-                return value;
-            }
-        };
-        /** Checks the supplied value object for null and replaces with the replament value if null. */
-        /** @param value The object to check for null. */
-        /** @param replace The value to replace with. */
-        Utils.cvNull = function (value, replace) {
-            if (replace === void 0) { replace = null; }
-            if (value === null) {
-                return replace;
-            }
-            else {
-                return value;
-            }
-        };
-        /** Checks the supplied value object for undefined and replaces with the replament value if undefined. */
-        /** @param value The object to check for undefined. */
-        /** @param replace The value to replace with. */
-        Utils.cvUndefined = function (value, replace) {
-            if (replace === void 0) { replace = null; }
-            if (value === undefined) {
-                return replace;
-            }
-            else {
-                return value;
-            }
-        };
-        /** Gets the querystring parameter with the supplied key. */
-        /** @param window The window object. */
-        /** @param entityName The key of the parameter. */
-        Utils.getQueryStringParameter = function (window, key) {
-            key = key.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
-            var regex = new RegExp("[\\?&]" + key + "=([^&#]*)");
-            var match = regex.exec(window.location.href);
-            if (match !== null) {
-                return decodeURIComponent(match[1].replace(/\+/g, " "));
-            }
-            match = new RegExp("[\\?&]extraqs=([^&#]*)").exec(window.location.href);
-            if (match !== null) {
-                match = regex.exec(decodeURIComponent(match[1].replace(/\+/g, " ")));
-                if (match !== null) {
-                    return match[1].replace(/\+/g, " ");
-                }
-            }
-            return null;
-        };
-        /** Returns a value indicating whether the supplied value is equal to any of the supplied values. */
-        /** @param value The value. */
-        /** @param values The values. */
-        Utils.isIn = function (value) {
-            var values = [];
-            for (var _i = 1; _i < arguments.length; _i++) {
-                values[_i - 1] = arguments[_i];
-            }
-            return values.indexOf(value) > -1;
-        };
-        /** Converts the current supplied value to a String object. */
-        /** @param value The value. */
-        Utils.toString = function (value) {
-            return [value].join("");
-        };
-        return Utils;
-    }());
-    OneXrm.Utils = Utils;
-    /** Xrm.Page extensions */
-    var Page = /** @class */ (function () {
-        function Page() {
-        }
-        /** Gets the context object. */
-        Page.context = function () {
-            if (typeof window.GetGlobalContext !== "undefined") {
-                return window.GetGlobalContext();
-            }
-            else {
-                if (typeof Xrm !== "undefined") {
-                    return Xrm.Page.context;
-                }
-                else {
-                    throw new Error("Context is not available.");
-                }
-            }
-        };
-        /** Gets the server URL from the context. */
-        Page.getClientUrl = function () {
-            return Page.context().getClientUrl();
-        };
-        /** Gets the path to the Web API endpoint. */
-        Page.getWebAPIPath = function () {
-            return [Page.getClientUrl(), "/api/data/v8.2"].join("");
-        };
-        /** Gets an array of strings that represent the names of each of the security roles that the user has. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Page.getUserRoleNames = function (successCallback, errorCallback) {
-            if (Page.userRoleNames === null) {
-                var filterRoleIds = [];
-                var roleIds = Xrm.Page.context.getUserRoles();
-                for (var _i = 0, roleIds_1 = roleIds; _i < roleIds_1.length; _i++) {
-                    var roleId = roleIds_1[_i];
-                    filterRoleIds.push(["roleid eq ", new Guid(roleId).toString()].join(""));
-                }
-                return Messages.queryWebAPI("GET", ["/roles?$select=name&$filter=", filterRoleIds.join(" or ")].join(""), null, [
-                    { header: "OData-MaxVersion", value: "4.0" },
-                    { header: "OData-Version", value: "4.0" }
-                ], function (data, textStatus, jqXHR) {
-                    Page.userRoleNames = [];
-                    var roles = JSON.parse(jqXHR.responseText).value;
-                    for (var _i = 0, roles_1 = roles; _i < roles_1.length; _i++) {
-                        var role = roles_1[_i];
-                        Page.userRoleNames.push(role.name);
-                    }
-                    if (successCallback) {
-                        successCallback(Page.userRoleNames);
-                    }
-                }, function (jqXHR, textStatus, errorThrown) {
-                    throw new Error(jqXHR.responseJSON.error.message);
-                });
-            }
-            else {
-                if (successCallback) {
-                    successCallback(Page.userRoleNames);
-                }
-                return null;
-            }
-        };
-        /** Gets an value indicating if the user has any of the supplied roles. */
-        /** @param roleNames The names of the roles to check for. */
-        /** @param successCallback The function to be called on a successful response. */
-        /** @param errorCallback The function to be called on an unsuccessful response. */
-        Page.userHasRoles = function (roleNames, successCallback, errorCallback) {
-            return Page.getUserRoleNames(function (userRoleNames) {
-                if (successCallback) {
-                    successCallback(Enumerable.From(userRoleNames).Intersect(roleNames).Any());
-                }
-            }, function (error) {
-                if (errorCallback) {
-                    errorCallback(error);
-                }
-            });
-        };
-        Page.userRoleNames = null;
-        return Page;
-    }());
-    OneXrm.Page = Page;
-    /** OneXrm.Guid class */
-    var Guid = /** @class */ (function () {
-        /** Initializes a new instance of the Guid class. */
-        /** @param value The value. */
-        function Guid(value) {
-            if (value === void 0) { value = "00000000000000000000000000000000"; }
-            this.value = "00000000000000000000000000000000";
-            this.value = value.replace(/[-{}]/g, "").toLowerCase();
-        }
-        /** Converts the value of the current Guid to its String equivalent. */
-        /** @param format The format to convert to. Possible values are:
-        N: 00000000000000000000000000000000
-        D: 00000000-0000-0000-0000-000000000000
-        B: {00000000-0000-0000-0000-000000000000}
-        Anything else: 00000000-0000-0000-0000-000000000000
-        */
-        Guid.prototype.toString = function (format) {
-            if (format === void 0) { format = ""; }
-            switch (format.toUpperCase()) {
-                case 'N': return this.value;
-                case 'B': return ["{", this.value.substr(0, 8), "-", this.value.substr(8, 4), "-", this.value.substr(12, 4), "-", this.value.substr(16, 4), "-", this.value.substr(20, 12), "}"].join("");
-                default: return [this.value.substr(0, 8), "-", this.value.substr(8, 4), "-", this.value.substr(12, 4), "-", this.value.substr(16, 4), "-", this.value.substr(20, 12)].join("");
-            }
-        };
-        /** Gets a value indicating whether the current Guid is equal to the suppled Guid. */
-        /** @param value The value to compare */
-        Guid.prototype.equals = function (value) {
-            if (value instanceof Guid) {
-                return this.toString() === value.toString();
-            }
-            else {
-                return this.toString() === new Guid(value).toString();
-            }
-        };
-        /** Gets a value indicating whether the supplied guids are equal. */
-        /** @param values The values to compare */
-        Guid.equals = function () {
-            var values = [];
-            for (var _i = 0; _i < arguments.length; _i++) {
-                values[_i] = arguments[_i];
-            }
-            if (values.length < 2) {
-                return false;
-            }
-            for (var i = 0; i < values.length; i++) {
-                switch (true) {
-                    case values[i] instanceof Guid: break;
-                    case (typeof values[i] === "string"):
-                        values[i] = new Guid(values[i]);
-                        break;
-                    default: return false;
-                }
-            }
-            var value1 = values[0];
-            for (var _a = 0, values_1 = values; _a < values_1.length; _a++) {
-                var value = values_1[_a];
-                if (!value1.equals(value)) {
-                    return false;
-                }
-            }
-            return true;
-        };
-        return Guid;
-    }());
-    OneXrm.Guid = Guid;
-    (function (Guid) {
-        Guid.Empty = new Guid("00000000-0000-0000-0000-000000000000");
-    })(Guid = OneXrm.Guid || (OneXrm.Guid = {}));
+		var MessagesBase = /** @class */ (function () {
+				function MessagesBase() {
+				}
+				/** Converts matching returned JSON objects to correct data types. */
+				/** @param key The key. */
+				/** @param value The value. */
+				MessagesBase.jsonReviver = function (key, value) {
+						// Convert dates from strings to Date objects
+						switch (typeof value) {
+								case "string":
+										var a = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)Z$/.exec(value);
+										if (a) {
+												return new Date(Date.UTC(+a[1], +a[2] - 1, +a[3], +a[4], +a[5], +a[6]));
+										}
+						}
+						return value;
+				};
+				/** Process a list of retrieved entities to convert to expected format. */
+				/** @param type The type of entity. */
+				/** @param entities The entities to process. */
+				MessagesBase.processRetrievedEntities = function (type, entities) {
+						for (var i = 0; i < entities.length; i++) {
+								var entity = entities[i];
+								var entityNew = new type(type.metadata.logicalName);
+								for (var attributeName in type.Attributes) {
+										var attributeMetadata = type.Attributes[attributeName];
+										var value = void 0;
+										switch (attributeMetadata.attributeType) {
+												case Metadata.AttributeTypeCode.Lookup:
+												case Metadata.AttributeTypeCode.Owner:
+														value = entity[["_", attributeMetadata.logicalName, "_value"].join("")];
+														break;
+												default:
+														value = entity[attributeMetadata.logicalName];
+														break;
+										}
+										if (value !== undefined) {
+												if (value === null) {
+														entityNew[attributeMetadata.logicalName] = null;
+												}
+												else {
+														switch (attributeMetadata.attributeType) {
+																case Metadata.AttributeTypeCode.BigInt:
+																case Metadata.AttributeTypeCode.Boolean:
+																case Metadata.AttributeTypeCode.DateTime:
+																case Metadata.AttributeTypeCode.Decimal:
+																case Metadata.AttributeTypeCode.Double:
+																case Metadata.AttributeTypeCode.Integer:
+																case Metadata.AttributeTypeCode.Money:
+																case Metadata.AttributeTypeCode.Picklist:
+																case Metadata.AttributeTypeCode.State:
+																case Metadata.AttributeTypeCode.Status:
+																		entityNew[attributeMetadata.logicalName] = {
+																				value: value,
+																				name: entity[[attributeMetadata.logicalName, "@OData.Community.Display.V1.FormattedValue"].join("")]
+																		};
+																		break;
+																case Metadata.AttributeTypeCode.Lookup:
+																case Metadata.AttributeTypeCode.Owner:
+																		var logicalName = entity[["_", attributeMetadata.logicalName, "_value@Microsoft.Dynamics.CRM.lookuplogicalname"].join("")];
+																		var type_1 = logicalName ? eval(["OneXrm.Entities.", logicalName].join("")) : undefined;
+																		entityNew[attributeMetadata.logicalName] = new EntityReference(value, logicalName, entity[["_", attributeMetadata.logicalName, "_value@OData.Community.Display.V1.FormattedValue"].join("")], type_1);
+																		break;
+																case Metadata.AttributeTypeCode.Memo:
+																case Metadata.AttributeTypeCode.String:
+																case Metadata.AttributeTypeCode.Uniqueidentifier:
+																		entityNew[attributeMetadata.logicalName] = value;
+																		break;
+																case Metadata.AttributeTypeCode.PartyList:
+																		// TODO
+																		break;
+																case Metadata.AttributeTypeCode.Virtual:
+																		entityNew[attributeMetadata.logicalName] = {
+																				value: $.map(value.split(","), function (val) { return parseInt(val, 10); }),
+																				name: $.map(entity[[attributeMetadata.logicalName, "@OData.Community.Display.V1.FormattedValue"].join("")].split(";"), function (val) { return val.trim(); })
+																		};
+																		break;
+																default:
+																		alert(["OneXrm.Messages.processRetrievedEntities: Unhandled attribute type: ", attributeMetadata.attributeType].join(""));
+																		break;
+														}
+												}
+										}
+								}
+								entities[i] = entityNew;
+						}
+						return entities;
+				};
+				return MessagesBase;
+		}());
+		/** Microsoft.Crm.Sdk.Messages JavaScript equivalent providing access to asynchronous Web API operations */
+		var Messages = /** @class */ (function (_super) {
+				__extends(Messages, _super);
+				function Messages() {
+						return _super !== null && _super.apply(this, arguments) || this;
+				}
+				/** Query the webAPI. */
+				/** @param method The method. */
+				/** @param webAPIQuery The Web API query. */
+				/** @param data The data. */
+				/** @param requestHeaders The request headers. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.queryWebAPI = function (method, webAPIQuery, data, requestHeaders, successCallback, errorCallback) {
+						var settings = {
+								url: encodeURI([Page.getWebAPIPath(), webAPIQuery].join("")),
+								contentType: "application/json; charset=utf-8",
+								dataType: "json",
+								method: method,
+								beforeSend: function (request) {
+										if (requestHeaders) {
+												for (var _i = 0, requestHeaders_1 = requestHeaders; _i < requestHeaders_1.length; _i++) {
+														var requestHeader = requestHeaders_1[_i];
+														request.setRequestHeader(requestHeader.header, requestHeader.value);
+												}
+										}
+								},
+								success: function (data, textStatus, jqXHR) {
+										if (successCallback) {
+												successCallback(data, textStatus, jqXHR);
+										}
+								},
+								error: function (jqXHR, textStatus, errorThrown) {
+										if (errorCallback) {
+												errorCallback(jqXHR, textStatus, errorThrown);
+										}
+								}
+						};
+						if (data) {
+								settings.data = data;
+						}
+						return $.ajax(settings);
+				};
+				/** Retrieve the entity according to the supplied Web API query. */
+				/** @param type The type of entity. */
+				/** @param webAPIQuery The Web API query. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.retrieveWebAPI = function (type, webAPIQuery, successCallback, errorCallback) {
+						return Messages.queryWebAPI("GET", webAPIQuery, null, [
+								{ header: "OData-MaxVersion", value: "4.0" },
+								{ header: "OData-Version", value: "4.0" },
+								{ header: "Prefer", value: 'odata.include-annotations="*"' }
+						], function (data, textStatus, jqXHR) {
+								if (successCallback) {
+										successCallback(Messages.processRetrievedEntities(type, [JSON.parse(jqXHR.responseText, Messages.jsonReviver)])[0]);
+								}
+						}, function (jqXHR, textStatus, errorThrown) {
+								if (errorCallback) {
+										errorCallback(new Error(jqXHR.responseJSON.error.message));
+								}
+						});
+				};
+				/** Retrieve the supplied entity with the supplied id. */
+				/** @param type The type of entity. */
+				/** @param id The id of the entity to retrieve. */
+				/** @param columns The columns to retrieve. Supply null to retrieve all columns. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.retrieve = function (type, id, columns, successCallback, errorCallback) {
+						if (columns === void 0) { columns = null; }
+						var parameters = [];
+						if (columns) {
+								var columnSet = new Query.ColumnSet(columns);
+								if (!columnSet.allColumns) {
+										parameters.push(["$select=", columnSet.webAPI].join(""));
+								}
+						}
+						var query = ["/", type.metadata.logicalCollectionName, "(", new Guid(id).toString("D"), ")"].join("");
+						if (parameters.length > 0) {
+								query += ["?", parameters.join("&")].join("");
+						}
+						return Messages.retrieveWebAPI(type, query, successCallback, errorCallback);
+				};
+				/** Retrieve the entities according to the supplied Web API query. */
+				/** @param type The type of entity. */
+				/** @param webAPIQuery The Web API query. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.retrieveMultipleWebAPI = function (type, webAPIQuery, successCallback, errorCallback) {
+						return Messages.queryWebAPI("GET", webAPIQuery, null, [
+								{ header: "OData-MaxVersion", value: "4.0" },
+								{ header: "OData-Version", value: "4.0" },
+								{ header: "Prefer", value: 'odata.include-annotations="*"' }
+						], function (data, textStatus, jqXHR) {
+								if (successCallback) {
+										successCallback(Messages.processRetrievedEntities(type, JSON.parse(jqXHR.responseText, Messages.jsonReviver).value));
+								}
+						}, function (jqXHR, textStatus, errorThrown) {
+								if (errorCallback) {
+										errorCallback(new Error(jqXHR.responseJSON.error.message));
+								}
+						});
+				};
+				/** Retrieve the entities according to the supplied query expression. */
+				/** @param type The type of entity. */
+				/** @param query The query expression. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.retrieveMultipleQuery = function (type, query, successCallback, errorCallback) {
+						return Messages.retrieveMultipleWebAPI(type, query.fetchXML, successCallback, errorCallback);
+				};
+				/** Retrieve the supplied entities according to the supplied query. */
+				/** @param type The type of entity. */
+				/** @param criteria The criteria. */
+				/** @param orders The order expressions. */
+				/** @param columns The columns to retrieve. Supply null to retrieve all columns. */
+				/** @param top The number of records to retrieve. Supply null to retrieve all records. */
+				/** @param linkedEntities The linked entities. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.retrieveMultiple = function (type, criteria, orders, columns, top, linkedEntities, successCallback, errorCallback) {
+						if (criteria === void 0) { criteria = new Query.FilterExpression(); }
+						if (orders === void 0) { orders = []; }
+						if (columns === void 0) { columns = null; }
+						if (top === void 0) { top = null; }
+						if (linkedEntities === void 0) { linkedEntities = []; }
+						var query = new Query.QueryExpression(type);
+						query.columnSet = new Query.ColumnSet(columns);
+						query.criteria = criteria;
+						query.orders = orders;
+						query.top = top;
+						query.linkedEntities = linkedEntities;
+						return Messages.retrieveMultipleQuery(type, query, successCallback, errorCallback);
+				};
+				/** Create the supplied entity. */
+				/** @param entity The entity to create. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.create = function (entity, successCallback, errorCallback) {
+						return Messages.createWebAPI(entity, null, successCallback, errorCallback);
+				};
+				/** Create the supplied entity and appends the supplied Web API query options. */
+				/** @param entity The entity to create. */
+				/** @param webAPIQueryOptions The Web API query options. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.createWebAPI = function (entity, webAPIQueryOptions, successCallback, errorCallback) {
+						var uri = ["/", entity.logicalName, "s"].join("");
+						if (webAPIQueryOptions) {
+								uri += ["?", webAPIQueryOptions].join("");
+						}
+						return Messages.queryWebAPI("POST", uri, JSON.stringify(entity.objectForOperations), [
+								{ header: "OData-MaxVersion", value: "4.0" },
+								{ header: "OData-Version", value: "4.0" }
+						], function (data, textStatus, jqXHR) {
+								if (successCallback) {
+										var entityId = jqXHR.getResponseHeader("OData-EntityId");
+										entityId = entityId.substr(entityId.indexOf("(") + 1, 36);
+										entity.id = entityId;
+										successCallback(entityId);
+								}
+						}, function (jqXHR, textStatus, errorThrown) {
+								if (errorCallback) {
+										errorCallback(new Error(jqXHR.responseJSON.error.message));
+								}
+						});
+				};
+				/** Update the supplied entity. */
+				/** @param entity The entity to update. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.update = function (entity, successCallback, errorCallback) {
+						return Messages.updateWebAPI(entity, null, successCallback, errorCallback);
+				};
+				/** Update the supplied entity and appends the supplied Web API query options. */
+				/** @param entity The entity to update. */
+				/** @param webAPIQueryOptions The Web API query options. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.updateWebAPI = function (entity, webAPIQueryOptions, successCallback, errorCallback) {
+						var uri = ["/", entity.entityType.metadata.logicalCollectionName, "(", entity.id, ")"].join("");
+						if (webAPIQueryOptions) {
+								uri += ["?", webAPIQueryOptions].join("");
+						}
+						return Messages.queryWebAPI("PATCH", uri, JSON.stringify(entity.objectForOperations), [
+								{ header: "OData-MaxVersion", value: "4.0" },
+								{ header: "OData-Version", value: "4.0" }
+						], function (data, textStatus, jqXHR) {
+								if (successCallback) {
+										var entityId = jqXHR.getResponseHeader("OData-EntityId");
+										entityId = entityId.substr(entityId.indexOf("(") + 1, 36);
+										entity.id = entityId;
+										successCallback(entityId);
+								}
+						}, function (jqXHR, textStatus, errorThrown) {
+								if (errorCallback) {
+										errorCallback(new Error(jqXHR.responseJSON.error.message));
+								}
+						});
+				};
+				/** Upserts the supplied entity. */
+				/** @param entity The entity to update. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.upsert = function (entity, successCallback, errorCallback) {
+						return Messages.updateWebAPI(entity, null, successCallback, errorCallback);
+				};
+				/** Upsert the supplied entity and appends the supplied Web API query options. */
+				/** @param entity The entity to update. */
+				/** @param webAPIQueryOptions The Web API query options. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.upsertWebAPI = function (entity, webAPIQueryOptions, successCallback, errorCallback) {
+						var uri = ["/", entity.entityType.metadata.logicalCollectionName, "(", entity.id, ")"].join("");
+						if (webAPIQueryOptions) {
+								uri += ["?", webAPIQueryOptions].join("");
+						}
+						return Messages.queryWebAPI("PATCH", uri, JSON.stringify(entity.objectForOperations), [
+								{ header: "OData-MaxVersion", value: "4.0" },
+								{ header: "OData-Version", value: "4.0" }
+						], function (data, textStatus, jqXHR) {
+								if (successCallback) {
+										var entityId = jqXHR.getResponseHeader("OData-EntityId");
+										entityId = entityId.substr(entityId.indexOf("(") + 1, 36);
+										entity.id = entityId;
+										successCallback(entityId);
+								}
+						}, function (jqXHR, textStatus, errorThrown) {
+								if (errorCallback) {
+										errorCallback(new Error(jqXHR.responseJSON.error.message));
+								}
+						});
+				};
+				/** Delete the supplied entity. */
+				/** @param type The type of entity to delete. */
+				/** @param id The id of the entity to delete. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.delete = function (type, id, successCallback, errorCallback) {
+						var uri = ["/", type.metadata.logicalCollectionName, "(", id, ")"].join("");
+						return Messages.queryWebAPI("DELETE", uri, null, [
+								{ header: "OData-MaxVersion", value: "4.0" },
+								{ header: "OData-Version", value: "4.0" }
+						], function (data, textStatus, jqXHR) {
+								if (successCallback) {
+										successCallback(id);
+								}
+						}, function (jqXHR, textStatus, errorThrown) {
+								if (errorCallback) {
+										errorCallback(new Error(jqXHR.responseJSON.error.message));
+								}
+						});
+				};
+				/** Associate the target entity with the related entity in the supplied relationship. */
+				/** @param navigationProperty The naigation property. */
+				/** @param targetType The target entity type. */
+				/** @param targetId The target entity Id. */
+				/** @param relatedEntityType The related entity name. */
+				/** @param relatedEntityId The related entity id. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.associate = function (navigationProperty, targetType, targetId, relatedEntityType, relatedEntityId, successCallback, errorCallback) {
+						var uri = ["/", targetType.metadata.logicalCollectionName, "(", targetId, ")/", navigationProperty, "/$ref"].join("");
+						return Messages.queryWebAPI("POST", uri, JSON.stringify({
+								"@odata.id": [Page.getWebAPIPath(), "/", relatedEntityType.metadata.logicalCollectionName, "(", relatedEntityId, ")"].join("")
+						}), [
+								{ header: "OData-MaxVersion", value: "4.0" },
+								{ header: "OData-Version", value: "4.0" }
+						], function (data, textStatus, jqXHR) {
+								if (successCallback) {
+										successCallback();
+								}
+						}, function (jqXHR, textStatus, errorThrown) {
+								if (errorCallback) {
+										errorCallback(new Error(jqXHR.responseJSON.error.message));
+								}
+						});
+				};
+				/** Disassociate the target entity with the related entity in the supplied relationship.
+						For a collection-valued (N:N) navigation property, supply related entity information.
+						For a single valued (N:1) navigation property, do not supply related entity information.
+				*/
+				/** @param navigationProperty The naigation property. */
+				/** @param targetEntityName The target entity name. */
+				/** @param targetEntityName The target entity Id. */
+				/** @param targetEntityName The related entity name. */
+				/** @param targetEntityName The related entity id. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.disassociate = function (navigationProperty, targetType, targetId, relatedEntityType, relatedEntityId, successCallback, errorCallback) {
+						var uri = ["/", targetType.metadata.logicalCollectionName, "(", targetId, ")/", navigationProperty, "/$ref"].join("");
+						if (relatedEntityType && relatedEntityId) {
+								uri += ["?$id=", Page.getWebAPIPath(), "/", relatedEntityType.metadata.logicalCollectionName, "(", relatedEntityId, ")"].join("");
+						}
+						return Messages.queryWebAPI("DELETE", uri, null, [
+								{ header: "OData-MaxVersion", value: "4.0" },
+								{ header: "OData-Version", value: "4.0" }
+						], function (data, textStatus, jqXHR) {
+								if (successCallback) {
+										successCallback();
+								}
+						}, function (jqXHR, textStatus, errorThrown) {
+								if (errorCallback) {
+										errorCallback(new Error(jqXHR.responseJSON.error.message));
+								}
+						});
+				};
+				/** Set the state of the entity. */
+				/** @param type The type of entity. */
+				/** @param id The id of the entity. */
+				/** @param statecode The statecode. */
+				/** @param statuscode The statuscode. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Messages.setState = function (type, id, statecode, statuscode, successCallback, errorCallback) {
+						return Messages.queryWebAPI("PATCH", ["/", type.metadata.logicalCollectionName, "(", new Guid(id).toString("D"), ")"].join(""), JSON.stringify({
+								statecode: statecode,
+								statuscode: statuscode
+						}), [
+								{ header: "OData-MaxVersion", value: "4.0" },
+								{ header: "OData-Version", value: "4.0" },
+								{ header: "Accept", value: "application/json" },
+								{ header: "Content-Type", value: "application/json; charset=utf-8" }
+						], function (data, textStatus, jqXHR) {
+								if (successCallback) {
+										successCallback();
+								}
+						}, function (jqXHR, textStatus, errorThrown) {
+								if (errorCallback) {
+										errorCallback(new Error(jqXHR.responseJSON.error.message));
+								}
+						});
+				};
+				return Messages;
+		}(MessagesBase));
+		OneXrm.Messages = Messages;
+		(function (Messages) {
+				/** Microsoft.Crm.Sdk.Messages JavaScript equivalent providing access to selected synchronous Web API operations
+				NOTE: Synchronous Web API calls MAY ONLY be made for ribbon button enablement rules that require synchronous calls
+				*/
+				var Synchronous = /** @class */ (function (_super) {
+						__extends(Synchronous, _super);
+						function Synchronous() {
+								return _super !== null && _super.apply(this, arguments) || this;
+						}
+						/** Query the webAPI. */
+						/** @param method The method. */
+						/** @param webAPIQuery The Web API query. */
+						/** @param data The data. */
+						/** @param requestHeaders The request headers. */
+						Synchronous.queryWebAPI = function (method, webAPIQuery, data, requestHeaders) {
+								var settings = {
+										url: encodeURI([Page.getWebAPIPath(), webAPIQuery].join("")),
+										async: false,
+										contentType: "application/json; charset=utf-8",
+										dataType: "json",
+										method: method,
+										beforeSend: function (request) {
+												if (requestHeaders) {
+														for (var _i = 0, requestHeaders_2 = requestHeaders; _i < requestHeaders_2.length; _i++) {
+																var requestHeader = requestHeaders_2[_i];
+																request.setRequestHeader(requestHeader.header, requestHeader.value);
+														}
+												}
+										},
+								};
+								if (data) {
+										settings.data = data;
+								}
+								return $.ajax(settings);
+						};
+						/** Retrieve the entity according to the supplied Web API query. */
+						/** @param type The type of entity. */
+						/** @param webAPIQuery The Web API query. */
+						Synchronous.retrieveWebAPI = function (type, webAPIQuery) {
+								var response = Synchronous.queryWebAPI("GET", webAPIQuery, null, [
+										{ header: "OData-MaxVersion", value: "4.0" },
+										{ header: "OData-Version", value: "4.0" },
+										{ header: "Prefer", value: 'odata.include-annotations="*"' }
+								]);
+								return Synchronous.processRetrievedEntities(type, [JSON.parse(response.responseText, Messages.jsonReviver)])[0];
+						};
+						/** Retrieve the supplied entity with the supplied id. */
+						/** @param type The type of entity. */
+						/** @param id The id of the entity to retrieve. */
+						/** @param columns The columns to retrieve. Supply null to retrieve all columns. */
+						Synchronous.retrieve = function (type, id, columns) {
+								if (columns === void 0) { columns = null; }
+								var parameters = [];
+								if (columns) {
+										var columnSet = new Query.ColumnSet(columns);
+										if (!columnSet.allColumns) {
+												parameters.push(["$select=", columnSet.webAPI].join(""));
+										}
+								}
+								var query = ["/", type.metadata.logicalCollectionName, "(", new Guid(id).toString("D"), ")"].join("");
+								if (parameters.length > 0) {
+										query += ["?", parameters.join("&")].join("");
+								}
+								return Messages.Synchronous.retrieveWebAPI(type, query);
+						};
+						/** Retrieve the entities according to the supplied Web API query. */
+						/** @param type The type of entity. */
+						/** @param webAPIQuery The Web API query. */
+						Synchronous.retrieveMultipleWebAPI = function (type, webAPIQuery) {
+								var response = Synchronous.queryWebAPI("GET", webAPIQuery, null, [
+										{ header: "OData-MaxVersion", value: "4.0" },
+										{ header: "OData-Version", value: "4.0" },
+										{ header: "Prefer", value: 'odata.include-annotations="*"' }
+								]);
+								return Synchronous.processRetrievedEntities(type, JSON.parse(response.responseText, Messages.jsonReviver).value);
+						};
+						/** Retrieve the entities according to the supplied query expression. */
+						/** @param type The type of entity. */
+						/** @param query The query expression. */
+						Synchronous.retrieveMultipleQuery = function (type, query) {
+								return Synchronous.retrieveMultipleWebAPI(type, query.fetchXML);
+						};
+						/** Retrieve the supplied entities according to the supplied query. */
+						/** @param type The type of entity. */
+						/** @param criteria The criteria. */
+						/** @param orders The order expressions. */
+						/** @param columns The columns to retrieve. Supply null to retrieve all columns. */
+						/** @param top The number of records to retrieve. Supply null to retrieve all records. */
+						/** @param linkedEntities The linked entities. */
+						Synchronous.retrieveMultiple = function (type, criteria, orders, columns, top, linkedEntities) {
+								if (criteria === void 0) { criteria = new Query.FilterExpression(); }
+								if (orders === void 0) { orders = []; }
+								if (columns === void 0) { columns = null; }
+								if (top === void 0) { top = null; }
+								if (linkedEntities === void 0) { linkedEntities = []; }
+								var query = new Query.QueryExpression(type);
+								query.columnSet = new Query.ColumnSet(columns);
+								query.criteria = criteria;
+								query.orders = orders;
+								query.top = top;
+								query.linkedEntities = linkedEntities;
+								return Synchronous.retrieveMultipleQuery(type, query);
+						};
+						return Synchronous;
+				}(MessagesBase));
+				Messages.Synchronous = Synchronous;
+		})(Messages = OneXrm.Messages || (OneXrm.Messages = {}));
+		/** Microsoft.Xrm.Sdk.Query JavaScript equivalent */
+		var Query = /** @class */ (function () {
+				function Query() {
+				}
+				return Query;
+		}());
+		OneXrm.Query = Query;
+		(function (Query) {
+				var LogicalOperator;
+				(function (LogicalOperator) {
+						LogicalOperator[LogicalOperator["And"] = 0] = "And";
+						LogicalOperator[LogicalOperator["Or"] = 1] = "Or";
+				})(LogicalOperator = Query.LogicalOperator || (Query.LogicalOperator = {}));
+				var ConditionOperator;
+				(function (ConditionOperator) {
+						ConditionOperator[ConditionOperator["Between"] = 0] = "Between";
+						ConditionOperator[ConditionOperator["Equal"] = 1] = "Equal";
+						ConditionOperator[ConditionOperator["EqualBusinessId"] = 2] = "EqualBusinessId";
+						ConditionOperator[ConditionOperator["EqualUserId"] = 3] = "EqualUserId";
+						ConditionOperator[ConditionOperator["EqualUserLanguage"] = 4] = "EqualUserLanguage";
+						ConditionOperator[ConditionOperator["GreaterEqual"] = 5] = "GreaterEqual";
+						ConditionOperator[ConditionOperator["GreaterThan"] = 6] = "GreaterThan";
+						ConditionOperator[ConditionOperator["In"] = 7] = "In";
+						ConditionOperator[ConditionOperator["Last7Days"] = 8] = "Last7Days";
+						ConditionOperator[ConditionOperator["LastMonth"] = 9] = "LastMonth";
+						ConditionOperator[ConditionOperator["LastWeek"] = 10] = "LastWeek";
+						ConditionOperator[ConditionOperator["LastXDays"] = 11] = "LastXDays";
+						ConditionOperator[ConditionOperator["LastXHours"] = 12] = "LastXHours";
+						ConditionOperator[ConditionOperator["LastXMonths"] = 13] = "LastXMonths";
+						ConditionOperator[ConditionOperator["LastXWeeks"] = 14] = "LastXWeeks";
+						ConditionOperator[ConditionOperator["LastXYears"] = 15] = "LastXYears";
+						ConditionOperator[ConditionOperator["LastYear"] = 16] = "LastYear";
+						ConditionOperator[ConditionOperator["LessEqual"] = 17] = "LessEqual";
+						ConditionOperator[ConditionOperator["LessThan"] = 18] = "LessThan";
+						ConditionOperator[ConditionOperator["Like"] = 19] = "Like";
+						ConditionOperator[ConditionOperator["Next7Days"] = 20] = "Next7Days";
+						ConditionOperator[ConditionOperator["NextMonth"] = 21] = "NextMonth";
+						ConditionOperator[ConditionOperator["NextWeek"] = 22] = "NextWeek";
+						ConditionOperator[ConditionOperator["NextXDays"] = 23] = "NextXDays";
+						ConditionOperator[ConditionOperator["NextXHours"] = 24] = "NextXHours";
+						ConditionOperator[ConditionOperator["NextXMonths"] = 25] = "NextXMonths";
+						ConditionOperator[ConditionOperator["NextXWeeks"] = 26] = "NextXWeeks";
+						ConditionOperator[ConditionOperator["NextXYears"] = 27] = "NextXYears";
+						ConditionOperator[ConditionOperator["NextYear"] = 28] = "NextYear";
+						ConditionOperator[ConditionOperator["NotBetween"] = 29] = "NotBetween";
+						ConditionOperator[ConditionOperator["NotEqual"] = 30] = "NotEqual";
+						ConditionOperator[ConditionOperator["NotEqualBusinessId"] = 31] = "NotEqualBusinessId";
+						ConditionOperator[ConditionOperator["NotEqualUserId"] = 32] = "NotEqualUserId";
+						ConditionOperator[ConditionOperator["NotIn"] = 33] = "NotIn";
+						ConditionOperator[ConditionOperator["NotLike"] = 34] = "NotLike";
+						ConditionOperator[ConditionOperator["NotNull"] = 35] = "NotNull";
+						ConditionOperator[ConditionOperator["NotOn"] = 36] = "NotOn";
+						ConditionOperator[ConditionOperator["Null"] = 37] = "Null";
+						ConditionOperator[ConditionOperator["OlderThanXMonths"] = 38] = "OlderThanXMonths";
+						ConditionOperator[ConditionOperator["On"] = 39] = "On";
+						ConditionOperator[ConditionOperator["OnOrAfter"] = 40] = "OnOrAfter";
+						ConditionOperator[ConditionOperator["OnOrBefore"] = 41] = "OnOrBefore";
+						ConditionOperator[ConditionOperator["ThisMonth"] = 42] = "ThisMonth";
+						ConditionOperator[ConditionOperator["ThisWeek"] = 43] = "ThisWeek";
+						ConditionOperator[ConditionOperator["ThisYear"] = 44] = "ThisYear";
+						ConditionOperator[ConditionOperator["Today"] = 45] = "Today";
+						ConditionOperator[ConditionOperator["Tomorrow"] = 46] = "Tomorrow";
+						ConditionOperator[ConditionOperator["Yesterday"] = 47] = "Yesterday";
+				})(ConditionOperator = Query.ConditionOperator || (Query.ConditionOperator = {}));
+				var OrderType;
+				(function (OrderType) {
+						OrderType[OrderType["Ascending"] = 0] = "Ascending";
+						OrderType[OrderType["Descending"] = 1] = "Descending";
+				})(OrderType = Query.OrderType || (Query.OrderType = {}));
+				var QueryExpression = /** @class */ (function () {
+						/** Initializes a new instance of the OneXrm.Query.QueryExpression class. */
+						/** @param type The type of entity to retrieve. */
+						/** @param columnSet The column set. */
+						/** @param criteria The filter expressions. */
+						/** @param orders The order expressions. */
+						/** @param top The number of records to retrieve. Supply null to retrieve all records. */
+						/** @param linkedEntities The linked entities. */
+						function QueryExpression(type, columnSet, criteria, orders, top, linkedEntities) {
+								if (columnSet === void 0) { columnSet = new ColumnSet(null); }
+								if (criteria === void 0) { criteria = new FilterExpression(); }
+								if (orders === void 0) { orders = []; }
+								if (top === void 0) { top = null; }
+								if (linkedEntities === void 0) { linkedEntities = []; }
+								this.type = type;
+								this.columnSet = columnSet;
+								this.criteria = criteria;
+								this.linkedEntities = linkedEntities;
+								this.orders = orders;
+								this.top = top;
+						}
+						Object.defineProperty(QueryExpression.prototype, "fetchXML", {
+								get: function () {
+										var fetchXML = [];
+										fetchXML.push(['<fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false"', this.top ? [' count="', this.top, '"'].join("") : "", ' >'].join(""));
+										fetchXML.push(['<entity name="', this.type.metadata.logicalName, '">'].join(""));
+										fetchXML.push(this.columnSet ? this.columnSet.fetchXML : '<all-attributes />');
+										if (this.orders) {
+												for (var _i = 0, _a = this.orders; _i < _a.length; _i++) {
+														var order = _a[_i];
+														fetchXML.push(order.fetchXML);
+												}
+										}
+										if (this.criteria) {
+												fetchXML.push(this.criteria.fetchXML);
+										}
+										if (this.linkedEntities) {
+												for (var _b = 0, _c = this.linkedEntities; _b < _c.length; _b++) {
+														var linkEntity = _c[_b];
+														fetchXML.push(linkEntity.fetchXML);
+												}
+										}
+										fetchXML.push('</entity>');
+										fetchXML.push('</fetch>');
+										var query = [
+												"/",
+												this.type.metadata.logicalCollectionName,
+												"?fetchXml=",
+												fetchXML.join("")
+										].join("");
+										return query;
+								},
+								enumerable: true,
+								configurable: true
+						});
+						Object.defineProperty(QueryExpression.prototype, "webAPI", {
+								get: function () {
+										var parameters = [];
+										if (this.columnSet && !this.columnSet.allColumns) {
+												parameters.push(["$select=", this.columnSet.webAPI].join(""));
+										}
+										if (this.criteria && this.criteria.conditions.length + this.criteria.filters.length > 0) {
+												parameters.push(["$filter=", this.criteria.webAPI].join(""));
+										}
+										if (this.orders && this.orders.length > 0) {
+												var orders = [];
+												for (var _i = 0, _a = this.orders; _i < _a.length; _i++) {
+														var order = _a[_i];
+														orders.push(order.webAPI);
+												}
+												parameters.push(["$orderby=", orders.join(",")].join(""));
+										}
+										if (this.top) {
+												parameters.push(["$top=", this.top].join(""));
+										}
+										var query = ["/", this.type.metadata.logicalCollectionName].join("");
+										if (parameters.length > 0) {
+												query += ["?", parameters.join("&")].join("");
+										}
+										return query;
+								},
+								enumerable: true,
+								configurable: true
+						});
+						return QueryExpression;
+				}());
+				Query.QueryExpression = QueryExpression;
+				var ColumnSet = /** @class */ (function () {
+						/** Initializes a new instance of the OneXrm.Query.ColumnSet class. */
+						/** @param columns The columns to retrieve. Supply null to retrieve all columns. */
+						function ColumnSet(columns) {
+								if (columns === void 0) { columns = null; }
+								this._columns = [];
+								this.columns = columns;
+						}
+						Object.defineProperty(ColumnSet.prototype, "columns", {
+								get: function () {
+										return this._columns;
+								},
+								set: function (value) {
+										this._columns = value;
+								},
+								enumerable: true,
+								configurable: true
+						});
+						Object.defineProperty(ColumnSet.prototype, "allColumns", {
+								get: function () {
+										return this.columns === null || this.columns.length === 0;
+								},
+								enumerable: true,
+								configurable: true
+						});
+						Object.defineProperty(ColumnSet.prototype, "fetchXML", {
+								get: function () {
+										if (!this.allColumns && this.columns instanceof Array) {
+												var columns = [];
+												for (var _i = 0, _a = this.columns; _i < _a.length; _i++) {
+														var column = _a[_i];
+														columns.push(['<attribute name="', column.logicalName, '" />'].join(""));
+												}
+												return columns.join("");
+										}
+										else {
+												return "<all-attributes />";
+										}
+								},
+								enumerable: true,
+								configurable: true
+						});
+						Object.defineProperty(ColumnSet.prototype, "webAPI", {
+								get: function () {
+										if (this.columns instanceof Array) {
+												var columns = [];
+												for (var _i = 0, _a = this.columns; _i < _a.length; _i++) {
+														var column = _a[_i];
+														switch (column.attributeType) {
+																case Metadata.AttributeTypeCode.Lookup:
+																case Metadata.AttributeTypeCode.Owner:
+																		columns.push(["_", column.logicalName, "_value"].join(""));
+																		break;
+																default:
+																		columns.push(column.logicalName);
+																		break;
+														}
+												}
+												return columns.join(",");
+										}
+										else {
+												return "";
+										}
+								},
+								enumerable: true,
+								configurable: true
+						});
+						return ColumnSet;
+				}());
+				Query.ColumnSet = ColumnSet;
+				var FilterExpression = /** @class */ (function () {
+						/** Initializes a new instance of the OneXrm.Query.FilterExpression class. */
+						/** @param filterOperator The filter operator. Defaults to OneXrm.Query.LogicalOperator.And. */
+						/** @param filters The list of filters. */
+						/** @param conditions The list of conditions. */
+						function FilterExpression(filterOperator, filters, conditions) {
+								if (filterOperator === void 0) { filterOperator = LogicalOperator.And; }
+								if (filters === void 0) { filters = []; }
+								if (conditions === void 0) { conditions = []; }
+								this.filterOperator = filterOperator;
+								this.filters = filters;
+								this.conditions = conditions;
+						}
+						Object.defineProperty(FilterExpression.prototype, "fetchXML", {
+								get: function () {
+										var fetchXML = [];
+										fetchXML.push(['<filter type="', this.filterOperator === LogicalOperator.And ? "and" : "or", '">'].join(""));
+										if (this.filters) {
+												for (var _i = 0, _a = this.filters; _i < _a.length; _i++) {
+														var filter = _a[_i];
+														fetchXML.push(filter.fetchXML);
+												}
+										}
+										if (this.conditions) {
+												for (var _b = 0, _c = this.conditions; _b < _c.length; _b++) {
+														var condition = _c[_b];
+														fetchXML.push(condition.fetchXML);
+												}
+										}
+										fetchXML.push('</filter>');
+										return fetchXML.join("");
+								},
+								enumerable: true,
+								configurable: true
+						});
+						Object.defineProperty(FilterExpression.prototype, "webAPI", {
+								get: function () {
+										var clauses = [];
+										for (var _i = 0, _a = this.conditions; _i < _a.length; _i++) {
+												var condition = _a[_i];
+												clauses.push(condition.webAPI);
+										}
+										for (var _b = 0, _c = this.filters; _b < _c.length; _b++) {
+												var filter = _c[_b];
+												clauses.push(["(", filter.webAPI, ")"].join(""));
+										}
+										return clauses.join(this.filterOperator === LogicalOperator.And ? " and " : " or ");
+								},
+								enumerable: true,
+								configurable: true
+						});
+						return FilterExpression;
+				}());
+				Query.FilterExpression = FilterExpression;
+				var ConditionExpression = /** @class */ (function () {
+						/** Initializes a new instance of the OneXrm.Query.ConditionExpression class. */
+						/** @param attribute The attribute. */
+						/** @param conditionOperator The condition operator. */
+						/** @param values The value(s). */
+						function ConditionExpression(attribute, conditionOperator, values) {
+								if (values === void 0) { values = []; }
+								this.attribute = attribute;
+								this.conditionOperator = conditionOperator;
+								this.values = (values instanceof Array ? values : [values]);
+						}
+						Object.defineProperty(ConditionExpression.prototype, "fetchXML", {
+								get: function () {
+										switch (this.values.length) {
+												case 0: return ['<condition attribute="', this.attribute.logicalName, '" operator="', this.fetchXMLOperator(), '" />'].join("");
+												case 1: return ['<condition attribute="', this.attribute.logicalName, '" operator="', this.fetchXMLOperator(), '" value="', this.values[0], '" />'].join("");
+												default:
+														var values = [];
+														for (var _i = 0, _a = this.values; _i < _a.length; _i++) {
+																var value = _a[_i];
+																values.push(['<value>', value, '</value>'].join(""));
+														}
+														return ['<condition attribute="', this.attribute.logicalName, '" operator="', this.fetchXMLOperator(), '">', values.join(""), '</condition>'].join("");
+										}
+								},
+								enumerable: true,
+								configurable: true
+						});
+						ConditionExpression.prototype.fetchXMLOperator = function () {
+								switch (this.conditionOperator) {
+										case ConditionOperator.Between: return "between";
+										case ConditionOperator.Equal: return "eq";
+										case ConditionOperator.EqualBusinessId: return "eq-businessid";
+										case ConditionOperator.EqualUserId: return "eq-userid";
+										case ConditionOperator.EqualUserLanguage: return "eq-userlanguage";
+										case ConditionOperator.GreaterEqual: return "ge";
+										case ConditionOperator.GreaterThan: return "gt";
+										case ConditionOperator.In: return "in";
+										case ConditionOperator.Last7Days: return "last-seven-days";
+										case ConditionOperator.LastMonth: return "last-month";
+										case ConditionOperator.LastWeek: return "last-week";
+										case ConditionOperator.LastXDays: return "last-x-days";
+										case ConditionOperator.LastXHours: return "last-x-hours";
+										case ConditionOperator.LastXMonths: return "last-x-months";
+										case ConditionOperator.LastXWeeks: return "last-x-weeks";
+										case ConditionOperator.LastXYears: return "last-x-years";
+										case ConditionOperator.LastYear: return "last-year";
+										case ConditionOperator.LessEqual: return "le";
+										case ConditionOperator.LessThan: return "lt";
+										case ConditionOperator.Like: return "like";
+										case ConditionOperator.Next7Days: return "next-seven-days";
+										case ConditionOperator.NextMonth: return "next-month";
+										case ConditionOperator.NextWeek: return "next-week";
+										case ConditionOperator.NextXDays: return "next-x-days";
+										case ConditionOperator.NextXHours: return "next-x-hours";
+										case ConditionOperator.NextXMonths: return "next-x-months";
+										case ConditionOperator.NextXWeeks: return "next-x-weeks";
+										case ConditionOperator.NextXYears: return "next-x-years";
+										case ConditionOperator.NextYear: return "next-year";
+										case ConditionOperator.NotBetween: return "not-between";
+										case ConditionOperator.NotEqual: return "ne";
+										case ConditionOperator.NotEqualBusinessId: return "ne-businessid";
+										case ConditionOperator.NotEqualUserId: return "ne-userid";
+										case ConditionOperator.NotIn: return "not-in";
+										case ConditionOperator.NotLike: return "not-like";
+										case ConditionOperator.NotNull: return "not-null";
+										case ConditionOperator.NotOn: return "not-on";
+										case ConditionOperator.Null: return "null";
+										case ConditionOperator.OlderThanXMonths: return "older-than-x-months";
+										case ConditionOperator.On: return "on";
+										case ConditionOperator.OnOrAfter: return "on-or-after";
+										case ConditionOperator.OnOrBefore: return "on-or-before";
+										case ConditionOperator.ThisMonth: return "this-month";
+										case ConditionOperator.ThisWeek: return "this-week";
+										case ConditionOperator.ThisYear: return "this-year";
+										case ConditionOperator.Today: return "today";
+										case ConditionOperator.Tomorrow: return "tomorrow";
+										case ConditionOperator.Yesterday: return "yesterday";
+										default: throw new Error(["OneXrm.Query.ConditionExpression: Unhandled Operator: ", this.conditionOperator].join(""));
+								}
+						};
+						Object.defineProperty(ConditionExpression.prototype, "webAPI", {
+								get: function () {
+										return [this.webAPIAttribute(), " ", this.webAPIOperator(), " ", this.webAPIValue()].join("");
+								},
+								enumerable: true,
+								configurable: true
+						});
+						ConditionExpression.prototype.webAPIAttribute = function () {
+								switch (this.attribute.attributeType) {
+										case Metadata.AttributeTypeCode.Lookup: return ["_", this.attribute.logicalName, "_value"].join("");
+										default: return this.attribute.logicalName;
+								}
+						};
+						ConditionExpression.prototype.webAPIOperator = function () {
+								switch (this.conditionOperator) {
+										case ConditionOperator.Equal: return "eq";
+										case ConditionOperator.GreaterEqual: return "ge";
+										case ConditionOperator.GreaterThan: return "gt";
+										case ConditionOperator.LessEqual: return "le";
+										case ConditionOperator.LessThan: return "lt";
+										case ConditionOperator.NotEqual: return "ne";
+										// TODO: Operators
+										default: throw new Error(["OneXrm.Query.ConditionExpression: Unhandled Operator: ", this.conditionOperator].join(""));
+								}
+						};
+						ConditionExpression.prototype.webAPIValue = function () {
+								switch (this.attribute.attributeType) {
+										case Metadata.AttributeTypeCode.Lookup: return this.values[0];
+										default:
+												switch (typeof this.values[0]) {
+														case "string": return ["'", this.values[0], "'"].join("");
+														default: return this.values[0];
+												}
+								}
+						};
+						return ConditionExpression;
+				}());
+				Query.ConditionExpression = ConditionExpression;
+				var OrderExpression = /** @class */ (function () {
+						/** Initializes a new instance of the OneXrm.Query.OrderExpression class. */
+						/** @param attribute The attribute. */
+						/** @param orderType The order type. Defaults to OneXrm.Query.OrderType.Ascending. */
+						function OrderExpression(attribute, orderType) {
+								if (orderType === void 0) { orderType = OrderType.Ascending; }
+								this.attribute = attribute;
+								this.orderType = orderType;
+						}
+						Object.defineProperty(OrderExpression.prototype, "fetchXML", {
+								get: function () {
+										return ['<order attribute="', this.attribute.logicalName, '" descending="', this.orderType === OrderType.Descending ? "true" : "false", '" />'].join("");
+								},
+								enumerable: true,
+								configurable: true
+						});
+						Object.defineProperty(OrderExpression.prototype, "webAPI", {
+								get: function () {
+										return [this.attribute.logicalName, " ", this.orderType === OrderType.Descending ? "desc" : "asc"].join("");
+								},
+								enumerable: true,
+								configurable: true
+						});
+						return OrderExpression;
+				}());
+				Query.OrderExpression = OrderExpression;
+				var LinkEntity = /** @class */ (function () {
+						/** Initializes a new instance of the OneXrm.Query.LinkEntity class. */
+						/** @param parentAttribute The attribute to link from on the parent entity. */
+						/** @param type The type of entity to link to. */
+						/** @param attribute The attribute to link to. */
+						/** @param criteria The filter expressions. */
+						/** @param alias The alias. */
+						/** @param linkedEntities The linked entities. */
+						function LinkEntity(parentAttribute, type, attribute, criteria, alias, linkedEntities) {
+								if (criteria === void 0) { criteria = new FilterExpression(); }
+								if (linkedEntities === void 0) { linkedEntities = []; }
+								this.parentAttribute = parentAttribute;
+								this.type = type;
+								this.attribute = attribute;
+								this.criteria = criteria;
+								this.alias = alias;
+								this.linkedEntities = linkedEntities;
+						}
+						Object.defineProperty(LinkEntity.prototype, "fetchXML", {
+								get: function () {
+										var fetchXML = [];
+										fetchXML.push(['<link-entity name="', this.type.metadata.logicalName, '" from="', this.attribute.logicalName, '" to="', this.parentAttribute.logicalName, '"', this.alias ? [' alias="', this.alias, '"'].join("") : "", '>'].join(""));
+										if (this.criteria) {
+												fetchXML.push(this.criteria.fetchXML);
+										}
+										if (this.linkedEntities) {
+												for (var _i = 0, _a = this.linkedEntities; _i < _a.length; _i++) {
+														var linkEntity = _a[_i];
+														fetchXML.push(linkEntity.fetchXML);
+												}
+										}
+										fetchXML.push('</link-entity>');
+										return fetchXML.join("");
+								},
+								enumerable: true,
+								configurable: true
+						});
+						Object.defineProperty(LinkEntity.prototype, "webAPI", {
+								get: function () {
+										throw new Error("OneXrm.Query.LinkEntity.webAPI not supported");
+								},
+								enumerable: true,
+								configurable: true
+						});
+						return LinkEntity;
+				}());
+				Query.LinkEntity = LinkEntity;
+		})(Query = OneXrm.Query || (OneXrm.Query = {}));
+		/** Microsoft.Xrm.Sdk.Entity JavaScript equivalent */
+		var Entity = /** @class */ (function () {
+				/** Initializes a new instance of the OneXrm.Entities.Account class. */
+				/** @param logicalName The logical name of the entity. */
+				function Entity(logicalName) {
+						this.entityType = Entity;
+						this.logicalName = logicalName;
+				}
+				Object.defineProperty(Entity.prototype, "objectForOperations", {
+						/** Gets the object for use in create/update operations. */
+						get: function () {
+								var entity = {};
+								for (var attributeName in this.entityType.Attributes) {
+										var attributeMetadata = this.entityType.Attributes[attributeName];
+										var attribute = this[attributeMetadata.logicalName];
+										if (attribute !== undefined) {
+												switch (attributeMetadata.attributeType) {
+														case Metadata.AttributeTypeCode.Uniqueidentifier:
+																// Ignore
+																break;
+														case Metadata.AttributeTypeCode.BigInt:
+														case Metadata.AttributeTypeCode.Boolean:
+														case Metadata.AttributeTypeCode.DateTime:
+														case Metadata.AttributeTypeCode.Decimal:
+														case Metadata.AttributeTypeCode.Double:
+														case Metadata.AttributeTypeCode.Integer:
+														case Metadata.AttributeTypeCode.Money:
+														case Metadata.AttributeTypeCode.Picklist:
+														case Metadata.AttributeTypeCode.State:
+														case Metadata.AttributeTypeCode.Status:
+																entity[attributeMetadata.logicalName] = (attribute === null ? null : attribute.value);
+																break;
+														case Metadata.AttributeTypeCode.Lookup:
+														case Metadata.AttributeTypeCode.Owner:
+																if (attribute === null) {
+																		throw new Error("OneXrm: Lookup/Owner property cannot be set to null as part of a create/update operation. Use OneXrm.Messages.Disassociate instead.");
+																}
+																if (!attribute.type) {
+																		throw new Error(["OneXrm: type property is required for operations on Lookup/Owner fields (", attributeMetadata.schemaName, ")."].join(""));
+																}
+																entity[[attributeMetadata.schemaName, "@odata.bind"].join("")] = ["/", attribute.type.metadata.logicalCollectionName, "(", attribute.id, ")"].join("");
+																break;
+														case Metadata.AttributeTypeCode.Memo:
+														case Metadata.AttributeTypeCode.String:
+																entity[attributeMetadata.logicalName] = attribute;
+																break;
+														case Metadata.AttributeTypeCode.PartyList:
+																// TODO
+																break;
+														default:
+																alert(["OneXrm.Entity.objectForOperations: Unhandled attribute type: ", attributeMetadata.attributeType].join(""));
+																break;
+												}
+										}
+								}
+								return entity;
+						},
+						enumerable: true,
+						configurable: true
+				});
+				return Entity;
+		}());
+		OneXrm.Entity = Entity;
+		(function (Entity) {
+				var Attributes;
+				(function (Attributes) {
+						// Force instantiation of the module
+						var dummy;
+				})(Attributes = Entity.Attributes || (Entity.Attributes = {}));
+		})(Entity = OneXrm.Entity || (OneXrm.Entity = {}));
+		/** Microsoft.Xrm.Sdk.EntityReference JavaScript equivalent */
+		var EntityReference = /** @class */ (function () {
+				/** Initializes a new instance of the EntityReference class. */
+				/** @param id The id. */
+				/** @param logicalName The logical name of the entity. */
+				/** @param name The name. */
+				/** @param type The type. Only required if the field will be written to. */
+				function EntityReference(id, logicalName, name, type) {
+						this.id = new Guid(id).toString();
+						this.logicalName = logicalName;
+						this.name = name;
+						this.type = type;
+				}
+				return EntityReference;
+		}());
+		OneXrm.EntityReference = EntityReference;
+		/** Microsoft.Xrm.Sdk.Metadata JavaScript equivalent */
+		var Metadata = /** @class */ (function () {
+				function Metadata() {
+				}
+				return Metadata;
+		}());
+		OneXrm.Metadata = Metadata;
+		(function (Metadata) {
+				var AttributeTypeCode;
+				(function (AttributeTypeCode) {
+						AttributeTypeCode[AttributeTypeCode["Boolean"] = 0] = "Boolean";
+						AttributeTypeCode[AttributeTypeCode["Customer"] = 1] = "Customer";
+						AttributeTypeCode[AttributeTypeCode["DateTime"] = 2] = "DateTime";
+						AttributeTypeCode[AttributeTypeCode["Decimal"] = 3] = "Decimal";
+						AttributeTypeCode[AttributeTypeCode["Double"] = 4] = "Double";
+						AttributeTypeCode[AttributeTypeCode["Integer"] = 5] = "Integer";
+						AttributeTypeCode[AttributeTypeCode["Lookup"] = 6] = "Lookup";
+						AttributeTypeCode[AttributeTypeCode["Memo"] = 7] = "Memo";
+						AttributeTypeCode[AttributeTypeCode["Money"] = 8] = "Money";
+						AttributeTypeCode[AttributeTypeCode["Owner"] = 9] = "Owner";
+						AttributeTypeCode[AttributeTypeCode["PartyList"] = 10] = "PartyList";
+						AttributeTypeCode[AttributeTypeCode["Picklist"] = 11] = "Picklist";
+						AttributeTypeCode[AttributeTypeCode["State"] = 12] = "State";
+						AttributeTypeCode[AttributeTypeCode["Status"] = 13] = "Status";
+						AttributeTypeCode[AttributeTypeCode["String"] = 14] = "String";
+						AttributeTypeCode[AttributeTypeCode["Uniqueidentifier"] = 15] = "Uniqueidentifier";
+						AttributeTypeCode[AttributeTypeCode["CalendarRules"] = 16] = "CalendarRules";
+						AttributeTypeCode[AttributeTypeCode["Virtual"] = 17] = "Virtual";
+						AttributeTypeCode[AttributeTypeCode["BigInt"] = 18] = "BigInt";
+						AttributeTypeCode[AttributeTypeCode["ManagedProperty"] = 19] = "ManagedProperty";
+						AttributeTypeCode[AttributeTypeCode["EntityName"] = 20] = "EntityName";
+				})(AttributeTypeCode = Metadata.AttributeTypeCode || (Metadata.AttributeTypeCode = {}));
+				/** Microsoft.Xrm.Sdk.Metadata.EntityMetadata JavaScript equivalent */
+				var EntityMetadata = /** @class */ (function () {
+						function EntityMetadata() {
+						}
+						return EntityMetadata;
+				}());
+				Metadata.EntityMetadata = EntityMetadata;
+				/** Microsoft.Xrm.Sdk.Metadata.AttributeMetadata JavaScript equivalent */
+				var AttributeMetadata = /** @class */ (function () {
+						function AttributeMetadata() {
+						}
+						return AttributeMetadata;
+				}());
+				Metadata.AttributeMetadata = AttributeMetadata;
+		})(Metadata = OneXrm.Metadata || (OneXrm.Metadata = {}));
+		/** Utilities */
+		var Utils = /** @class */ (function () {
+				function Utils() {
+				}
+				/** Checks the supplied value object for empty string and replaces with the replament value if empty string. */
+				/** @param value The object to check for empty string. */
+				/** @param replace The value to replace with. */
+				Utils.cvEmptyString = function (value, replace) {
+						if (replace === void 0) { replace = null; }
+						if (value === "") {
+								return replace;
+						}
+						else {
+								return value;
+						}
+				};
+				/** Checks the supplied value object for null and replaces with the replament value if null. */
+				/** @param value The object to check for null. */
+				/** @param replace The value to replace with. */
+				Utils.cvNull = function (value, replace) {
+						if (replace === void 0) { replace = null; }
+						if (value === null) {
+								return replace;
+						}
+						else {
+								return value;
+						}
+				};
+				/** Checks the supplied value object for undefined and replaces with the replament value if undefined. */
+				/** @param value The object to check for undefined. */
+				/** @param replace The value to replace with. */
+				Utils.cvUndefined = function (value, replace) {
+						if (replace === void 0) { replace = null; }
+						if (value === undefined) {
+								return replace;
+						}
+						else {
+								return value;
+						}
+				};
+				/** Gets the querystring parameter with the supplied key. */
+				/** @param window The window object. */
+				/** @param entityName The key of the parameter. */
+				Utils.getQueryStringParameter = function (window, key) {
+						key = key.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
+						var regex = new RegExp("[\\?&]" + key + "=([^&#]*)");
+						var match = regex.exec(window.location.href);
+						if (match !== null) {
+								return decodeURIComponent(match[1].replace(/\+/g, " "));
+						}
+						match = new RegExp("[\\?&]extraqs=([^&#]*)").exec(window.location.href);
+						if (match !== null) {
+								match = regex.exec(decodeURIComponent(match[1].replace(/\+/g, " ")));
+								if (match !== null) {
+										return match[1].replace(/\+/g, " ");
+								}
+						}
+						return null;
+				};
+				/** Returns a value indicating whether the supplied value is equal to any of the supplied values. */
+				/** @param value The value. */
+				/** @param values The values. */
+				Utils.isIn = function (value) {
+						var values = [];
+						for (var _i = 1; _i < arguments.length; _i++) {
+								values[_i - 1] = arguments[_i];
+						}
+						return values.indexOf(value) > -1;
+				};
+				/** Converts the current supplied value to a String object. */
+				/** @param value The value. */
+				Utils.toString = function (value) {
+						return [value].join("");
+				};
+				return Utils;
+		}());
+		OneXrm.Utils = Utils;
+		/** Xrm.Page extensions */
+		var Page = /** @class */ (function () {
+				function Page() {
+				}
+				/** Gets the context object. */
+				Page.context = function () {
+						if (typeof window.GetGlobalContext !== "undefined") {
+								return window.GetGlobalContext();
+						}
+						else {
+								if (typeof Xrm !== "undefined") {
+										return Xrm.Page.context;
+								}
+								else {
+										throw new Error("Context is not available.");
+								}
+						}
+				};
+				/** Gets the server URL from the context. */
+				Page.getClientUrl = function () {
+						return Page.context().getClientUrl();
+				};
+				/** Gets the path to the Web API endpoint. */
+				Page.getWebAPIPath = function () {
+						return [Page.getClientUrl(), "/api/data/v8.2"].join("");
+				};
+				/** Gets an array of strings that represent the names of each of the security roles that the user has. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Page.getUserRoleNames = function (successCallback, errorCallback) {
+						if (Page.userRoleNames === null) {
+								var filterRoleIds = [];
+								var roleIds = Xrm.Page.context.getUserRoles();
+								for (var _i = 0, roleIds_1 = roleIds; _i < roleIds_1.length; _i++) {
+										var roleId = roleIds_1[_i];
+										filterRoleIds.push(["roleid eq ", new Guid(roleId).toString()].join(""));
+								}
+								return Messages.queryWebAPI("GET", ["/roles?$select=name&$filter=", filterRoleIds.join(" or ")].join(""), null, [
+										{ header: "OData-MaxVersion", value: "4.0" },
+										{ header: "OData-Version", value: "4.0" }
+								], function (data, textStatus, jqXHR) {
+										Page.userRoleNames = [];
+										var roles = JSON.parse(jqXHR.responseText).value;
+										for (var _i = 0, roles_1 = roles; _i < roles_1.length; _i++) {
+												var role = roles_1[_i];
+												Page.userRoleNames.push(role.name);
+										}
+										if (successCallback) {
+												successCallback(Page.userRoleNames);
+										}
+								}, function (jqXHR, textStatus, errorThrown) {
+										throw new Error(jqXHR.responseJSON.error.message);
+								});
+						}
+						else {
+								if (successCallback) {
+										successCallback(Page.userRoleNames);
+								}
+								return null;
+						}
+				};
+				/** Gets an value indicating if the user has any of the supplied roles. */
+				/** @param roleNames The names of the roles to check for. */
+				/** @param successCallback The function to be called on a successful response. */
+				/** @param errorCallback The function to be called on an unsuccessful response. */
+				Page.userHasRoles = function (roleNames, successCallback, errorCallback) {
+						return Page.getUserRoleNames(function (userRoleNames) {
+								if (successCallback) {
+										successCallback(Enumerable.From(userRoleNames).Intersect(roleNames).Any());
+								}
+						}, function (error) {
+								if (errorCallback) {
+										errorCallback(error);
+								}
+						});
+				};
+				Page.userRoleNames = null;
+				return Page;
+		}());
+		OneXrm.Page = Page;
+		/** OneXrm.Guid class */
+		var Guid = /** @class */ (function () {
+				/** Initializes a new instance of the Guid class. */
+				/** @param value The value. */
+				function Guid(value) {
+						if (value === void 0) { value = "00000000000000000000000000000000"; }
+						this.value = "00000000000000000000000000000000";
+						this.value = value.replace(/[-{}]/g, "").toLowerCase();
+				}
+				/** Converts the value of the current Guid to its String equivalent. */
+				/** @param format The format to convert to. Possible values are:
+				N: 00000000000000000000000000000000
+				D: 00000000-0000-0000-0000-000000000000
+				B: {00000000-0000-0000-0000-000000000000}
+				Anything else: 00000000-0000-0000-0000-000000000000
+				*/
+				Guid.prototype.toString = function (format) {
+						if (format === void 0) { format = ""; }
+						switch (format.toUpperCase()) {
+								case 'N': return this.value;
+								case 'B': return ["{", this.value.substr(0, 8), "-", this.value.substr(8, 4), "-", this.value.substr(12, 4), "-", this.value.substr(16, 4), "-", this.value.substr(20, 12), "}"].join("");
+								default: return [this.value.substr(0, 8), "-", this.value.substr(8, 4), "-", this.value.substr(12, 4), "-", this.value.substr(16, 4), "-", this.value.substr(20, 12)].join("");
+						}
+				};
+				/** Gets a value indicating whether the current Guid is equal to the suppled Guid. */
+				/** @param value The value to compare */
+				Guid.prototype.equals = function (value) {
+						if (value instanceof Guid) {
+								return this.toString() === value.toString();
+						}
+						else {
+								return this.toString() === new Guid(value).toString();
+						}
+				};
+				/** Gets a value indicating whether the supplied guids are equal. */
+				/** @param values The values to compare */
+				Guid.equals = function () {
+						var values = [];
+						for (var _i = 0; _i < arguments.length; _i++) {
+								values[_i] = arguments[_i];
+						}
+						if (values.length < 2) {
+								return false;
+						}
+						for (var i = 0; i < values.length; i++) {
+								switch (true) {
+										case values[i] instanceof Guid: break;
+										case (typeof values[i] === "string"):
+												values[i] = new Guid(values[i]);
+												break;
+										default: return false;
+								}
+						}
+						var value1 = values[0];
+						for (var _a = 0, values_1 = values; _a < values_1.length; _a++) {
+								var value = values_1[_a];
+								if (!value1.equals(value)) {
+										return false;
+								}
+						}
+						return true;
+				};
+				return Guid;
+		}());
+		OneXrm.Guid = Guid;
+		(function (Guid) {
+				Guid.Empty = new Guid("00000000-0000-0000-0000-000000000000");
+		})(Guid = OneXrm.Guid || (OneXrm.Guid = {}));
 })(OneXrm || (OneXrm = {}));
 
 
 var __extends = (this && this.__extends) || (function () {
-    var extendStatics = Object.setPrototypeOf ||
-        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
-    return function (d, b) {
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
+		var extendStatics = Object.setPrototypeOf ||
+				({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+				function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+		return function (d, b) {
+				extendStatics(d, b);
+				function __() { this.constructor = d; }
+				d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+		};
 })();
 var OneXrm;
 (function (OneXrm) {
-    var Entities;
-    (function (Entities) {
-        var contact = /** @class */ (function (_super) {
-            __extends(contact, _super);
-            /** Initializes a new instance of the OneXrm.Entities.contact class. */
-            function contact() {
-                var _this = _super.call(this, contact.metadata.logicalName) || this;
-                _this.entityType = contact;
-                return _this;
-            }
-            Object.defineProperty(contact.prototype, "contactid", {
-                get: function () {
-                    return this.id;
-                },
-                set: function (value) {
-                    this.id = value;
-                },
-                enumerable: true,
-                configurable: true
-            });
-            /** Retrieves the contact with the supplied id. */
-            /** @param id The id of the contact to retrieve. */
-            /** @param columns The columns to retrieve. Supply null to retrieve all columns. */
-            /** @param successCallback The function to be called on a successful response. */
-            /** @param errorCallback The function to be called on an unsuccessful response. */
-            contact.retrieve = function (id, columns, successCallback, errorCallback) {
-                if (columns === void 0) { columns = null; }
-                return OneXrm.Messages.retrieve(this, id, columns, successCallback, errorCallback);
-            };
-            /** Retrieves the contact according to the supplied Web API query. */
-            /** @param webAPIQuery The Web API query. */
-            /** @param successCallback The function to be called on a successful response. */
-            /** @param errorCallback The function to be called on an unsuccessful response. */
-            contact.retrieveWebAPI = function (webAPIQuery, successCallback, errorCallback) {
-                return OneXrm.Messages.retrieveWebAPI(this, webAPIQuery, successCallback, errorCallback);
-            };
-            /** Retrieves the list of contact records according to the supplied query. */
-            /** @param criteria The criteria. */
-            /** @param orders The order expressions. */
-            /** @param columns The columns to retrieve. Supply null to retrieve all columns. */
-            /** @param top The number of records to retrieve. Supply null to retrieve all records. */
-            /** @param linkedEntities The linked entities. */
-            /** @param successCallback The function to be called on a successful response. */
-            /** @param errorCallback The function to be called on an unsuccessful response. */
-            contact.retrieveMultiple = function (criteria, orders, columns, top, linkedEntities, successCallback, errorCallback) {
-                if (criteria === void 0) { criteria = new OneXrm.Query.FilterExpression(); }
-                if (orders === void 0) { orders = []; }
-                if (columns === void 0) { columns = null; }
-                if (top === void 0) { top = null; }
-                if (linkedEntities === void 0) { linkedEntities = []; }
-                return OneXrm.Messages.retrieveMultiple(this, criteria, orders, columns, top, linkedEntities, successCallback, errorCallback);
-            };
-            /** Retrieves the list of contact records according to the supplied query expression. */
-            /** @param query The query expression. */
-            /** @param successCallback The function to be called on a successful response. */
-            /** @param errorCallback The function to be called on an unsuccessful response. */
-            contact.retrieveMultipleQuery = function (query, successCallback, errorCallback) {
-                return OneXrm.Messages.retrieveMultipleQuery(this, query, successCallback, errorCallback);
-            };
-            /** Retrieves the list of contact records according to the supplied query expression. */
-            /** @param webAPIQuery The Web API query. */
-            /** @param successCallback The function to be called on a successful response. */
-            /** @param errorCallback The function to be called on an unsuccessful response. */
-            contact.retrieveMultipleWebAPI = function (webAPIQuery, successCallback, errorCallback) {
-                return OneXrm.Messages.retrieveMultipleWebAPI(this, webAPIQuery, successCallback, errorCallback);
-            };
-            Object.defineProperty(contact, "linq", {
-                /** Starts a new LINQ query. */
-                get: function () {
-                    return new contact.LINQ();
-                },
-                enumerable: true,
-                configurable: true
-            });
-            contact.metadata = {
-                isCustomEntity: false,
-                logicalCollectionName: "contacts",
-                logicalName: "contact",
-                objectTypeCode: 2,
-                primaryIdAttribute: "contactid",
-                schemaName: "Contact"
-            };
-            return contact;
-        }(OneXrm.Entity));
-        Entities.contact = contact;
-        (function (contact) {
-            var Attributes = /** @class */ (function () {
-                function Attributes() {
-                }
-                Attributes.accountid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "accountid",
-                    schemaName: "AccountId",
-                    targets: ["account"]
-                };
-                Attributes.accountrolecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "accountrolecode",
-                    schemaName: "AccountRoleCode"
-                };
-                Attributes.address1_addressid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
-                    logicalName: "address1_addressid",
-                    schemaName: "Address1_AddressId"
-                };
-                Attributes.address1_addresstypecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "address1_addresstypecode",
-                    schemaName: "Address1_AddressTypeCode"
-                };
-                Attributes.address1_city = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_city",
-                    schemaName: "Address1_City"
-                };
-                Attributes.address1_composite = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Memo,
-                    logicalName: "address1_composite",
-                    schemaName: "Address1_Composite"
-                };
-                Attributes.address1_country = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_country",
-                    schemaName: "Address1_Country"
-                };
-                Attributes.address1_county = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_county",
-                    schemaName: "Address1_County"
-                };
-                Attributes.address1_fax = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_fax",
-                    schemaName: "Address1_Fax"
-                };
-                Attributes.address1_freighttermscode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "address1_freighttermscode",
-                    schemaName: "Address1_FreightTermsCode"
-                };
-                Attributes.address1_latitude = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
-                    logicalName: "address1_latitude",
-                    schemaName: "Address1_Latitude"
-                };
-                Attributes.address1_line1 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_line1",
-                    schemaName: "Address1_Line1"
-                };
-                Attributes.address1_line2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_line2",
-                    schemaName: "Address1_Line2"
-                };
-                Attributes.address1_line3 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_line3",
-                    schemaName: "Address1_Line3"
-                };
-                Attributes.address1_longitude = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
-                    logicalName: "address1_longitude",
-                    schemaName: "Address1_Longitude"
-                };
-                Attributes.address1_name = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_name",
-                    schemaName: "Address1_Name"
-                };
-                Attributes.address1_postalcode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_postalcode",
-                    schemaName: "Address1_PostalCode"
-                };
-                Attributes.address1_postofficebox = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_postofficebox",
-                    schemaName: "Address1_PostOfficeBox"
-                };
-                Attributes.address1_primarycontactname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_primarycontactname",
-                    schemaName: "Address1_PrimaryContactName"
-                };
-                Attributes.address1_shippingmethodcode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "address1_shippingmethodcode",
-                    schemaName: "Address1_ShippingMethodCode"
-                };
-                Attributes.address1_stateorprovince = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_stateorprovince",
-                    schemaName: "Address1_StateOrProvince"
-                };
-                Attributes.address1_telephone1 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_telephone1",
-                    schemaName: "Address1_Telephone1"
-                };
-                Attributes.address1_telephone2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_telephone2",
-                    schemaName: "Address1_Telephone2"
-                };
-                Attributes.address1_telephone3 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_telephone3",
-                    schemaName: "Address1_Telephone3"
-                };
-                Attributes.address1_upszone = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address1_upszone",
-                    schemaName: "Address1_UPSZone"
-                };
-                Attributes.address1_utcoffset = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "address1_utcoffset",
-                    schemaName: "Address1_UTCOffset"
-                };
-                Attributes.address2_addressid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
-                    logicalName: "address2_addressid",
-                    schemaName: "Address2_AddressId"
-                };
-                Attributes.address2_addresstypecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "address2_addresstypecode",
-                    schemaName: "Address2_AddressTypeCode"
-                };
-                Attributes.address2_city = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_city",
-                    schemaName: "Address2_City"
-                };
-                Attributes.address2_composite = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Memo,
-                    logicalName: "address2_composite",
-                    schemaName: "Address2_Composite"
-                };
-                Attributes.address2_country = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_country",
-                    schemaName: "Address2_Country"
-                };
-                Attributes.address2_county = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_county",
-                    schemaName: "Address2_County"
-                };
-                Attributes.address2_fax = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_fax",
-                    schemaName: "Address2_Fax"
-                };
-                Attributes.address2_freighttermscode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "address2_freighttermscode",
-                    schemaName: "Address2_FreightTermsCode"
-                };
-                Attributes.address2_latitude = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
-                    logicalName: "address2_latitude",
-                    schemaName: "Address2_Latitude"
-                };
-                Attributes.address2_line1 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_line1",
-                    schemaName: "Address2_Line1"
-                };
-                Attributes.address2_line2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_line2",
-                    schemaName: "Address2_Line2"
-                };
-                Attributes.address2_line3 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_line3",
-                    schemaName: "Address2_Line3"
-                };
-                Attributes.address2_longitude = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
-                    logicalName: "address2_longitude",
-                    schemaName: "Address2_Longitude"
-                };
-                Attributes.address2_name = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_name",
-                    schemaName: "Address2_Name"
-                };
-                Attributes.address2_postalcode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_postalcode",
-                    schemaName: "Address2_PostalCode"
-                };
-                Attributes.address2_postofficebox = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_postofficebox",
-                    schemaName: "Address2_PostOfficeBox"
-                };
-                Attributes.address2_primarycontactname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_primarycontactname",
-                    schemaName: "Address2_PrimaryContactName"
-                };
-                Attributes.address2_shippingmethodcode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "address2_shippingmethodcode",
-                    schemaName: "Address2_ShippingMethodCode"
-                };
-                Attributes.address2_stateorprovince = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_stateorprovince",
-                    schemaName: "Address2_StateOrProvince"
-                };
-                Attributes.address2_telephone1 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_telephone1",
-                    schemaName: "Address2_Telephone1"
-                };
-                Attributes.address2_telephone2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_telephone2",
-                    schemaName: "Address2_Telephone2"
-                };
-                Attributes.address2_telephone3 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_telephone3",
-                    schemaName: "Address2_Telephone3"
-                };
-                Attributes.address2_upszone = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address2_upszone",
-                    schemaName: "Address2_UPSZone"
-                };
-                Attributes.address2_utcoffset = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "address2_utcoffset",
-                    schemaName: "Address2_UTCOffset"
-                };
-                Attributes.address3_addressid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
-                    logicalName: "address3_addressid",
-                    schemaName: "Address3_AddressId"
-                };
-                Attributes.address3_addresstypecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "address3_addresstypecode",
-                    schemaName: "Address3_AddressTypeCode"
-                };
-                Attributes.address3_city = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_city",
-                    schemaName: "Address3_City"
-                };
-                Attributes.address3_composite = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Memo,
-                    logicalName: "address3_composite",
-                    schemaName: "Address3_Composite"
-                };
-                Attributes.address3_country = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_country",
-                    schemaName: "Address3_Country"
-                };
-                Attributes.address3_county = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_county",
-                    schemaName: "Address3_County"
-                };
-                Attributes.address3_fax = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_fax",
-                    schemaName: "Address3_Fax"
-                };
-                Attributes.address3_freighttermscode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "address3_freighttermscode",
-                    schemaName: "Address3_FreightTermsCode"
-                };
-                Attributes.address3_latitude = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
-                    logicalName: "address3_latitude",
-                    schemaName: "Address3_Latitude"
-                };
-                Attributes.address3_line1 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_line1",
-                    schemaName: "Address3_Line1"
-                };
-                Attributes.address3_line2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_line2",
-                    schemaName: "Address3_Line2"
-                };
-                Attributes.address3_line3 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_line3",
-                    schemaName: "Address3_Line3"
-                };
-                Attributes.address3_longitude = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
-                    logicalName: "address3_longitude",
-                    schemaName: "Address3_Longitude"
-                };
-                Attributes.address3_name = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_name",
-                    schemaName: "Address3_Name"
-                };
-                Attributes.address3_postalcode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_postalcode",
-                    schemaName: "Address3_PostalCode"
-                };
-                Attributes.address3_postofficebox = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_postofficebox",
-                    schemaName: "Address3_PostOfficeBox"
-                };
-                Attributes.address3_primarycontactname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_primarycontactname",
-                    schemaName: "Address3_PrimaryContactName"
-                };
-                Attributes.address3_shippingmethodcode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "address3_shippingmethodcode",
-                    schemaName: "Address3_ShippingMethodCode"
-                };
-                Attributes.address3_stateorprovince = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_stateorprovince",
-                    schemaName: "Address3_StateOrProvince"
-                };
-                Attributes.address3_telephone1 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_telephone1",
-                    schemaName: "Address3_Telephone1"
-                };
-                Attributes.address3_telephone2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_telephone2",
-                    schemaName: "Address3_Telephone2"
-                };
-                Attributes.address3_telephone3 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_telephone3",
-                    schemaName: "Address3_Telephone3"
-                };
-                Attributes.address3_upszone = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "address3_upszone",
-                    schemaName: "Address3_UPSZone"
-                };
-                Attributes.address3_utcoffset = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "address3_utcoffset",
-                    schemaName: "Address3_UTCOffset"
-                };
-                Attributes.aging30 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
-                    logicalName: "aging30",
-                    schemaName: "Aging30"
-                };
-                Attributes.aging60 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
-                    logicalName: "aging60",
-                    schemaName: "Aging60"
-                };
-                Attributes.aging90 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
-                    logicalName: "aging90",
-                    schemaName: "Aging90"
-                };
-                Attributes.anniversary = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "anniversary",
-                    schemaName: "Anniversary"
-                };
-                Attributes.annualincome = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
-                    logicalName: "annualincome",
-                    schemaName: "AnnualIncome"
-                };
-                Attributes.assistantname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "assistantname",
-                    schemaName: "AssistantName"
-                };
-                Attributes.assistantphone = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "assistantphone",
-                    schemaName: "AssistantPhone"
-                };
-                Attributes.birthdate = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "birthdate",
-                    schemaName: "BirthDate"
-                };
-                Attributes.business2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "business2",
-                    schemaName: "Business2"
-                };
-                Attributes.callback = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "callback",
-                    schemaName: "Callback"
-                };
-                Attributes.childrensnames = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "childrensnames",
-                    schemaName: "ChildrensNames"
-                };
-                Attributes.company = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "company",
-                    schemaName: "Company"
-                };
-                Attributes.contactid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
-                    logicalName: "contactid",
-                    schemaName: "ContactId"
-                };
-                Attributes.createdby = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "createdby",
-                    schemaName: "CreatedBy",
-                    targets: ["systemuser"]
-                };
-                Attributes.createdbyexternalparty = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "createdbyexternalparty",
-                    schemaName: "CreatedByExternalParty",
-                    targets: ["externalparty"]
-                };
-                Attributes.createdon = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "createdon",
-                    schemaName: "CreatedOn"
-                };
-                Attributes.createdonbehalfby = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "createdonbehalfby",
-                    schemaName: "CreatedOnBehalfBy",
-                    targets: ["systemuser"]
-                };
-                Attributes.creditlimit = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
-                    logicalName: "creditlimit",
-                    schemaName: "CreditLimit"
-                };
-                Attributes.creditonhold = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "creditonhold",
-                    schemaName: "CreditOnHold"
-                };
-                Attributes.customersizecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "customersizecode",
-                    schemaName: "CustomerSizeCode"
-                };
-                Attributes.customertypecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "customertypecode",
-                    schemaName: "CustomerTypeCode"
-                };
-                Attributes.defaultpricelevelid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "defaultpricelevelid",
-                    schemaName: "DefaultPriceLevelId",
-                    targets: ["pricelevel"]
-                };
-                Attributes.department = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "department",
-                    schemaName: "Department"
-                };
-                Attributes.description = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Memo,
-                    logicalName: "description",
-                    schemaName: "Description"
-                };
-                Attributes.di_age = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "di_age",
-                    schemaName: "di_age"
-                };
-                Attributes.di_dateofbirth = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "di_dateofbirth",
-                    schemaName: "di_dateofBirth"
-                };
-                Attributes.di_esitimatedreturnfinal = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Decimal,
-                    logicalName: "di_esitimatedreturnfinal",
-                    schemaName: "di_EsitimatedReturnFinal"
-                };
-                Attributes.di_estimated_return = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "di_estimated_return",
-                    schemaName: "di_estimated_Return"
-                };
-                Attributes.di_interest_rate = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Decimal,
-                    logicalName: "di_interest_rate",
-                    schemaName: "di_interest_rate"
-                };
-                Attributes.di_intial_investment = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
-                    logicalName: "di_intial_investment",
-                    schemaName: "di_Intial_Investment"
-                };
-                Attributes.di_intialinvesmentfinal = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Decimal,
-                    logicalName: "di_intialinvesmentfinal",
-                    schemaName: "di_IntialInvesmentFinal"
-                };
-                Attributes.di_investmentperiod = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "di_investmentperiod",
-                    schemaName: "di_InvestmentPeriod"
-                };
-                Attributes.di_joining_date = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "di_joining_date",
-                    schemaName: "di_joining_date"
-                };
-                Attributes.di_maturity_date = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "di_maturity_date",
-                    schemaName: "di_maturity_date"
-                };
-                Attributes.donotbulkemail = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "donotbulkemail",
-                    schemaName: "DoNotBulkEMail"
-                };
-                Attributes.donotbulkpostalmail = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "donotbulkpostalmail",
-                    schemaName: "DoNotBulkPostalMail"
-                };
-                Attributes.donotemail = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "donotemail",
-                    schemaName: "DoNotEMail"
-                };
-                Attributes.donotfax = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "donotfax",
-                    schemaName: "DoNotFax"
-                };
-                Attributes.donotphone = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "donotphone",
-                    schemaName: "DoNotPhone"
-                };
-                Attributes.donotpostalmail = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "donotpostalmail",
-                    schemaName: "DoNotPostalMail"
-                };
-                Attributes.donotsendmm = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "donotsendmm",
-                    schemaName: "DoNotSendMM"
-                };
-                Attributes.educationcode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "educationcode",
-                    schemaName: "EducationCode"
-                };
-                Attributes.emailaddress1 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "emailaddress1",
-                    schemaName: "EMailAddress1"
-                };
-                Attributes.emailaddress2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "emailaddress2",
-                    schemaName: "EMailAddress2"
-                };
-                Attributes.emailaddress3 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "emailaddress3",
-                    schemaName: "EMailAddress3"
-                };
-                Attributes.employeeid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "employeeid",
-                    schemaName: "EmployeeId"
-                };
-                Attributes.entityimageid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
-                    logicalName: "entityimageid",
-                    schemaName: "EntityImageId"
-                };
-                Attributes.exchangerate = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Decimal,
-                    logicalName: "exchangerate",
-                    schemaName: "ExchangeRate"
-                };
-                Attributes.externaluseridentifier = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "externaluseridentifier",
-                    schemaName: "ExternalUserIdentifier"
-                };
-                Attributes.familystatuscode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "familystatuscode",
-                    schemaName: "FamilyStatusCode"
-                };
-                Attributes.fax = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "fax",
-                    schemaName: "Fax"
-                };
-                Attributes.firstname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "firstname",
-                    schemaName: "FirstName"
-                };
-                Attributes.followemail = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "followemail",
-                    schemaName: "FollowEmail"
-                };
-                Attributes.ftpsiteurl = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "ftpsiteurl",
-                    schemaName: "FtpSiteUrl"
-                };
-                Attributes.fullname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "fullname",
-                    schemaName: "FullName"
-                };
-                Attributes.gendercode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "gendercode",
-                    schemaName: "GenderCode"
-                };
-                Attributes.governmentid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "governmentid",
-                    schemaName: "GovernmentId"
-                };
-                Attributes.haschildrencode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "haschildrencode",
-                    schemaName: "HasChildrenCode"
-                };
-                Attributes.home2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "home2",
-                    schemaName: "Home2"
-                };
-                Attributes.importsequencenumber = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "importsequencenumber",
-                    schemaName: "ImportSequenceNumber"
-                };
-                Attributes.isautocreate = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "isautocreate",
-                    schemaName: "IsAutoCreate"
-                };
-                Attributes.isbackofficecustomer = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "isbackofficecustomer",
-                    schemaName: "IsBackofficeCustomer"
-                };
-                Attributes.isprivate = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "isprivate",
-                    schemaName: "IsPrivate"
-                };
-                Attributes.jobtitle = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "jobtitle",
-                    schemaName: "JobTitle"
-                };
-                Attributes.lastname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "lastname",
-                    schemaName: "LastName"
-                };
-                Attributes.lastonholdtime = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "lastonholdtime",
-                    schemaName: "LastOnHoldTime"
-                };
-                Attributes.lastusedincampaign = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "lastusedincampaign",
-                    schemaName: "LastUsedInCampaign"
-                };
-                Attributes.leadsourcecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "leadsourcecode",
-                    schemaName: "LeadSourceCode"
-                };
-                Attributes.managername = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "managername",
-                    schemaName: "ManagerName"
-                };
-                Attributes.managerphone = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "managerphone",
-                    schemaName: "ManagerPhone"
-                };
-                Attributes.marketingonly = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "marketingonly",
-                    schemaName: "MarketingOnly"
-                };
-                Attributes.masterid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "masterid",
-                    schemaName: "MasterId",
-                    targets: ["contact"]
-                };
-                Attributes.merged = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "merged",
-                    schemaName: "Merged"
-                };
-                Attributes.middlename = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "middlename",
-                    schemaName: "MiddleName"
-                };
-                Attributes.mobilephone = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "mobilephone",
-                    schemaName: "MobilePhone"
-                };
-                Attributes.modifiedby = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "modifiedby",
-                    schemaName: "ModifiedBy",
-                    targets: ["systemuser"]
-                };
-                Attributes.modifiedbyexternalparty = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "modifiedbyexternalparty",
-                    schemaName: "ModifiedByExternalParty",
-                    targets: ["externalparty"]
-                };
-                Attributes.modifiedon = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "modifiedon",
-                    schemaName: "ModifiedOn"
-                };
-                Attributes.modifiedonbehalfby = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "modifiedonbehalfby",
-                    schemaName: "ModifiedOnBehalfBy",
-                    targets: ["systemuser"]
-                };
-                Attributes.nickname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "nickname",
-                    schemaName: "NickName"
-                };
-                Attributes.numberofchildren = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "numberofchildren",
-                    schemaName: "NumberOfChildren"
-                };
-                Attributes.onholdtime = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "onholdtime",
-                    schemaName: "OnHoldTime"
-                };
-                Attributes.originatingleadid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "originatingleadid",
-                    schemaName: "OriginatingLeadId",
-                    targets: ["lead"]
-                };
-                Attributes.overriddencreatedon = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
-                    logicalName: "overriddencreatedon",
-                    schemaName: "OverriddenCreatedOn"
-                };
-                Attributes.ownerid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Owner,
-                    logicalName: "ownerid",
-                    schemaName: "OwnerId"
-                };
-                Attributes.owningbusinessunit = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "owningbusinessunit",
-                    schemaName: "OwningBusinessUnit",
-                    targets: ["businessunit"]
-                };
-                Attributes.owningteam = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "owningteam",
-                    schemaName: "OwningTeam",
-                    targets: ["team"]
-                };
-                Attributes.owninguser = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "owninguser",
-                    schemaName: "OwningUser",
-                    targets: ["systemuser"]
-                };
-                Attributes.pager = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "pager",
-                    schemaName: "Pager"
-                };
-                Attributes.parentcontactid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "parentcontactid",
-                    schemaName: "ParentContactId",
-                    targets: ["contact"]
-                };
-                Attributes.parentcustomerid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Customer,
-                    logicalName: "parentcustomerid",
-                    schemaName: "ParentCustomerId"
-                };
-                Attributes.participatesinworkflow = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
-                    logicalName: "participatesinworkflow",
-                    schemaName: "ParticipatesInWorkflow"
-                };
-                Attributes.paymenttermscode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "paymenttermscode",
-                    schemaName: "PaymentTermsCode"
-                };
-                Attributes.preferredappointmentdaycode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "preferredappointmentdaycode",
-                    schemaName: "PreferredAppointmentDayCode"
-                };
-                Attributes.preferredappointmenttimecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "preferredappointmenttimecode",
-                    schemaName: "PreferredAppointmentTimeCode"
-                };
-                Attributes.preferredcontactmethodcode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "preferredcontactmethodcode",
-                    schemaName: "PreferredContactMethodCode"
-                };
-                Attributes.preferredequipmentid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "preferredequipmentid",
-                    schemaName: "PreferredEquipmentId",
-                    targets: ["equipment"]
-                };
-                Attributes.preferredserviceid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "preferredserviceid",
-                    schemaName: "PreferredServiceId",
-                    targets: ["service"]
-                };
-                Attributes.preferredsystemuserid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "preferredsystemuserid",
-                    schemaName: "PreferredSystemUserId",
-                    targets: ["systemuser"]
-                };
-                Attributes.processid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
-                    logicalName: "processid",
-                    schemaName: "ProcessId"
-                };
-                Attributes.salutation = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "salutation",
-                    schemaName: "Salutation"
-                };
-                Attributes.shippingmethodcode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "shippingmethodcode",
-                    schemaName: "ShippingMethodCode"
-                };
-                Attributes.slaid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "slaid",
-                    schemaName: "SLAId",
-                    targets: ["sla"]
-                };
-                Attributes.slainvokedid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "slainvokedid",
-                    schemaName: "SLAInvokedId",
-                    targets: ["sla"]
-                };
-                Attributes.spousesname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "spousesname",
-                    schemaName: "SpousesName"
-                };
-                Attributes.stageid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
-                    logicalName: "stageid",
-                    schemaName: "StageId"
-                };
-                Attributes.statecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.State,
-                    logicalName: "statecode",
-                    schemaName: "StateCode"
-                };
-                Attributes.statuscode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Status,
-                    logicalName: "statuscode",
-                    schemaName: "StatusCode"
-                };
-                Attributes.subscriptionid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
-                    logicalName: "subscriptionid",
-                    schemaName: "SubscriptionId"
-                };
-                Attributes.suffix = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "suffix",
-                    schemaName: "Suffix"
-                };
-                Attributes.telephone1 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "telephone1",
-                    schemaName: "Telephone1"
-                };
-                Attributes.telephone2 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "telephone2",
-                    schemaName: "Telephone2"
-                };
-                Attributes.telephone3 = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "telephone3",
-                    schemaName: "Telephone3"
-                };
-                Attributes.territorycode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
-                    logicalName: "territorycode",
-                    schemaName: "TerritoryCode"
-                };
-                Attributes.timespentbymeonemailandmeetings = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "timespentbymeonemailandmeetings",
-                    schemaName: "TimeSpentByMeOnEmailAndMeetings"
-                };
-                Attributes.timezoneruleversionnumber = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "timezoneruleversionnumber",
-                    schemaName: "TimeZoneRuleVersionNumber"
-                };
-                Attributes.transactioncurrencyid = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
-                    logicalName: "transactioncurrencyid",
-                    schemaName: "TransactionCurrencyId",
-                    targets: ["transactioncurrency"]
-                };
-                Attributes.traversedpath = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "traversedpath",
-                    schemaName: "TraversedPath"
-                };
-                Attributes.utcconversiontimezonecode = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
-                    logicalName: "utcconversiontimezonecode",
-                    schemaName: "UTCConversionTimeZoneCode"
-                };
-                Attributes.versionnumber = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.BigInt,
-                    logicalName: "versionnumber",
-                    schemaName: "VersionNumber"
-                };
-                Attributes.websiteurl = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "websiteurl",
-                    schemaName: "WebSiteUrl"
-                };
-                Attributes.yomifirstname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "yomifirstname",
-                    schemaName: "YomiFirstName"
-                };
-                Attributes.yomifullname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "yomifullname",
-                    schemaName: "YomiFullName"
-                };
-                Attributes.yomilastname = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "yomilastname",
-                    schemaName: "YomiLastName"
-                };
-                Attributes.yomimiddlename = {
-                    attributeType: OneXrm.Metadata.AttributeTypeCode.String,
-                    logicalName: "yomimiddlename",
-                    schemaName: "YomiMiddleName"
-                };
-                return Attributes;
-            }());
-            contact.Attributes = Attributes;
-            var LINQ = /** @class */ (function () {
-                /** Initializes a new instance of the Entities.contact.LINQ class. */
-                function LINQ() {
-                    this.query = new OneXrm.Query.QueryExpression(contact);
-                }
-                /** Appends a condition expression to the query's criteria conditions. */
-                /** @param attribute The attribute. */
-                /** @param conditionOperator The condition operator. */
-                /** @param values The value(s). */
-                LINQ.prototype.addCondition = function (attribute, conditionOperator, values) {
-                    if (values === void 0) { values = []; }
-                    this.query.criteria.conditions.push(new OneXrm.Query.ConditionExpression(attribute, conditionOperator, values));
-                    return this;
-                };
-                /** Appends an order expression to the query's orders. */
-                /** @param attribute The attribute. */
-                /** @param orderType The order type. Defaults to OneXrm.Query.OrderType.Ascending. */
-                LINQ.prototype.addOrder = function (attribute, orderType) {
-                    if (orderType === void 0) { orderType = OneXrm.Query.OrderType.Ascending; }
-                    this.query.orders.push(new OneXrm.Query.OrderExpression(attribute, orderType));
-                    return this;
-                };
-                /** Applies ordering to the LINQ retrieval. */
-                /** @param linkedEntities The linked entities. */
-                LINQ.prototype.join = function (linkedEntities) {
-                    if (linkedEntities === void 0) { linkedEntities = []; }
-                    this.query.linkedEntities = linkedEntities;
-                    return this;
-                };
-                /** Applies ordering to the LINQ retrieval. */
-                /** @param orders The order expressions. */
-                LINQ.prototype.orderBy = function (orders) {
-                    if (orders === void 0) { orders = []; }
-                    this.query.orders = orders;
-                    return this;
-                };
-                /** Applies a top clause to the LINQ retrieval. */
-                /** @param top The count. */
-                LINQ.prototype.top = function (top) {
-                    this.query.top = top;
-                    return this;
-                };
-                /** Selects the supplied columns and executes the LINQ query. */
-                /** @param successCallback The function to be called on a successful response. */
-                /** @param errorCallback The function to be called on an unsuccessful response. */
-                LINQ.prototype.select = function (columns, successCallback, errorCallback) {
-                    if (columns === void 0) { columns = null; }
-                    this.query.columnSet = new OneXrm.Query.ColumnSet(columns);
-                    return OneXrm.Messages.retrieveMultipleQuery(contact, this.query, successCallback, errorCallback);
-                };
-                /** Applies criteria to the LINQ retrieval. */
-                /** @param filterOperator The filter operator. */
-                /** @param filters The list of filters. */
-                /** @param conditions The list of conditions. */
-                LINQ.prototype.where = function (filterOperator, filters, conditions) {
-                    if (filterOperator === void 0) { filterOperator = OneXrm.Query.LogicalOperator.And; }
-                    if (filters === void 0) { filters = []; }
-                    if (conditions === void 0) { conditions = []; }
-                    this.query.criteria.filterOperator = filterOperator;
-                    this.query.criteria.filters = filters;
-                    this.query.criteria.conditions = conditions;
-                    return this;
-                };
-                return LINQ;
-            }());
-            contact.LINQ = LINQ;
-        })(contact = Entities.contact || (Entities.contact = {}));
-    })(Entities = OneXrm.Entities || (OneXrm.Entities = {}));
-    var OptionSets;
-    (function (OptionSets) {
-        var contact_accountrolecode;
-        (function (contact_accountrolecode) {
-            contact_accountrolecode[contact_accountrolecode["DecisionMaker"] = 1] = "DecisionMaker";
-            contact_accountrolecode[contact_accountrolecode["Employee"] = 2] = "Employee";
-            contact_accountrolecode[contact_accountrolecode["Influencer"] = 3] = "Influencer";
-        })(contact_accountrolecode = OptionSets.contact_accountrolecode || (OptionSets.contact_accountrolecode = {}));
-        var contact_address1_addresstypecode;
-        (function (contact_address1_addresstypecode) {
-            contact_address1_addresstypecode[contact_address1_addresstypecode["BillTo"] = 1] = "BillTo";
-            contact_address1_addresstypecode[contact_address1_addresstypecode["ShipTo"] = 2] = "ShipTo";
-            contact_address1_addresstypecode[contact_address1_addresstypecode["Primary"] = 3] = "Primary";
-            contact_address1_addresstypecode[contact_address1_addresstypecode["Other"] = 4] = "Other";
-        })(contact_address1_addresstypecode = OptionSets.contact_address1_addresstypecode || (OptionSets.contact_address1_addresstypecode = {}));
-        var contact_address1_freighttermscode;
-        (function (contact_address1_freighttermscode) {
-            contact_address1_freighttermscode[contact_address1_freighttermscode["FOB"] = 1] = "FOB";
-            contact_address1_freighttermscode[contact_address1_freighttermscode["NoCharge"] = 2] = "NoCharge";
-        })(contact_address1_freighttermscode = OptionSets.contact_address1_freighttermscode || (OptionSets.contact_address1_freighttermscode = {}));
-        var contact_address1_shippingmethodcode;
-        (function (contact_address1_shippingmethodcode) {
-            contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["Airborne"] = 1] = "Airborne";
-            contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["DHL"] = 2] = "DHL";
-            contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["FedEx"] = 3] = "FedEx";
-            contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["UPS"] = 4] = "UPS";
-            contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["PostalMail"] = 5] = "PostalMail";
-            contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["FullLoad"] = 6] = "FullLoad";
-            contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["WillCall"] = 7] = "WillCall";
-        })(contact_address1_shippingmethodcode = OptionSets.contact_address1_shippingmethodcode || (OptionSets.contact_address1_shippingmethodcode = {}));
-        var contact_address2_addresstypecode;
-        (function (contact_address2_addresstypecode) {
-            contact_address2_addresstypecode[contact_address2_addresstypecode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_address2_addresstypecode = OptionSets.contact_address2_addresstypecode || (OptionSets.contact_address2_addresstypecode = {}));
-        var contact_address2_freighttermscode;
-        (function (contact_address2_freighttermscode) {
-            contact_address2_freighttermscode[contact_address2_freighttermscode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_address2_freighttermscode = OptionSets.contact_address2_freighttermscode || (OptionSets.contact_address2_freighttermscode = {}));
-        var contact_address2_shippingmethodcode;
-        (function (contact_address2_shippingmethodcode) {
-            contact_address2_shippingmethodcode[contact_address2_shippingmethodcode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_address2_shippingmethodcode = OptionSets.contact_address2_shippingmethodcode || (OptionSets.contact_address2_shippingmethodcode = {}));
-        var contact_address3_addresstypecode;
-        (function (contact_address3_addresstypecode) {
-            contact_address3_addresstypecode[contact_address3_addresstypecode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_address3_addresstypecode = OptionSets.contact_address3_addresstypecode || (OptionSets.contact_address3_addresstypecode = {}));
-        var contact_address3_freighttermscode;
-        (function (contact_address3_freighttermscode) {
-            contact_address3_freighttermscode[contact_address3_freighttermscode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_address3_freighttermscode = OptionSets.contact_address3_freighttermscode || (OptionSets.contact_address3_freighttermscode = {}));
-        var contact_address3_shippingmethodcode;
-        (function (contact_address3_shippingmethodcode) {
-            contact_address3_shippingmethodcode[contact_address3_shippingmethodcode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_address3_shippingmethodcode = OptionSets.contact_address3_shippingmethodcode || (OptionSets.contact_address3_shippingmethodcode = {}));
-        var contact_creditonhold;
-        (function (contact_creditonhold) {
-            contact_creditonhold[contact_creditonhold["Yes"] = 1] = "Yes";
-            contact_creditonhold[contact_creditonhold["No"] = 0] = "No";
-        })(contact_creditonhold = OptionSets.contact_creditonhold || (OptionSets.contact_creditonhold = {}));
-        var contact_customersizecode;
-        (function (contact_customersizecode) {
-            contact_customersizecode[contact_customersizecode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_customersizecode = OptionSets.contact_customersizecode || (OptionSets.contact_customersizecode = {}));
-        var contact_customertypecode;
-        (function (contact_customertypecode) {
-            contact_customertypecode[contact_customertypecode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_customertypecode = OptionSets.contact_customertypecode || (OptionSets.contact_customertypecode = {}));
-        var contact_donotbulkemail;
-        (function (contact_donotbulkemail) {
-            contact_donotbulkemail[contact_donotbulkemail["DoNotAllow"] = 1] = "DoNotAllow";
-            contact_donotbulkemail[contact_donotbulkemail["Allow"] = 0] = "Allow";
-        })(contact_donotbulkemail = OptionSets.contact_donotbulkemail || (OptionSets.contact_donotbulkemail = {}));
-        var contact_donotbulkpostalmail;
-        (function (contact_donotbulkpostalmail) {
-            contact_donotbulkpostalmail[contact_donotbulkpostalmail["Yes"] = 1] = "Yes";
-            contact_donotbulkpostalmail[contact_donotbulkpostalmail["No"] = 0] = "No";
-        })(contact_donotbulkpostalmail = OptionSets.contact_donotbulkpostalmail || (OptionSets.contact_donotbulkpostalmail = {}));
-        var contact_donotemail;
-        (function (contact_donotemail) {
-            contact_donotemail[contact_donotemail["DoNotAllow"] = 1] = "DoNotAllow";
-            contact_donotemail[contact_donotemail["Allow"] = 0] = "Allow";
-        })(contact_donotemail = OptionSets.contact_donotemail || (OptionSets.contact_donotemail = {}));
-        var contact_donotfax;
-        (function (contact_donotfax) {
-            contact_donotfax[contact_donotfax["DoNotAllow"] = 1] = "DoNotAllow";
-            contact_donotfax[contact_donotfax["Allow"] = 0] = "Allow";
-        })(contact_donotfax = OptionSets.contact_donotfax || (OptionSets.contact_donotfax = {}));
-        var contact_donotphone;
-        (function (contact_donotphone) {
-            contact_donotphone[contact_donotphone["DoNotAllow"] = 1] = "DoNotAllow";
-            contact_donotphone[contact_donotphone["Allow"] = 0] = "Allow";
-        })(contact_donotphone = OptionSets.contact_donotphone || (OptionSets.contact_donotphone = {}));
-        var contact_donotpostalmail;
-        (function (contact_donotpostalmail) {
-            contact_donotpostalmail[contact_donotpostalmail["DoNotAllow"] = 1] = "DoNotAllow";
-            contact_donotpostalmail[contact_donotpostalmail["Allow"] = 0] = "Allow";
-        })(contact_donotpostalmail = OptionSets.contact_donotpostalmail || (OptionSets.contact_donotpostalmail = {}));
-        var contact_donotsendmm;
-        (function (contact_donotsendmm) {
-            contact_donotsendmm[contact_donotsendmm["DoNotSend"] = 1] = "DoNotSend";
-            contact_donotsendmm[contact_donotsendmm["Send"] = 0] = "Send";
-        })(contact_donotsendmm = OptionSets.contact_donotsendmm || (OptionSets.contact_donotsendmm = {}));
-        var contact_educationcode;
-        (function (contact_educationcode) {
-            contact_educationcode[contact_educationcode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_educationcode = OptionSets.contact_educationcode || (OptionSets.contact_educationcode = {}));
-        var contact_familystatuscode;
-        (function (contact_familystatuscode) {
-            contact_familystatuscode[contact_familystatuscode["Single"] = 1] = "Single";
-            contact_familystatuscode[contact_familystatuscode["Married"] = 2] = "Married";
-            contact_familystatuscode[contact_familystatuscode["Divorced"] = 3] = "Divorced";
-            contact_familystatuscode[contact_familystatuscode["Widowed"] = 4] = "Widowed";
-        })(contact_familystatuscode = OptionSets.contact_familystatuscode || (OptionSets.contact_familystatuscode = {}));
-        var contact_followemail;
-        (function (contact_followemail) {
-            contact_followemail[contact_followemail["Allow"] = 1] = "Allow";
-            contact_followemail[contact_followemail["DoNotAllow"] = 0] = "DoNotAllow";
-        })(contact_followemail = OptionSets.contact_followemail || (OptionSets.contact_followemail = {}));
-        var contact_gendercode;
-        (function (contact_gendercode) {
-            contact_gendercode[contact_gendercode["Male"] = 1] = "Male";
-            contact_gendercode[contact_gendercode["Female"] = 2] = "Female";
-        })(contact_gendercode = OptionSets.contact_gendercode || (OptionSets.contact_gendercode = {}));
-        var contact_haschildrencode;
-        (function (contact_haschildrencode) {
-            contact_haschildrencode[contact_haschildrencode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_haschildrencode = OptionSets.contact_haschildrencode || (OptionSets.contact_haschildrencode = {}));
-        var contact_isautocreate;
-        (function (contact_isautocreate) {
-            contact_isautocreate[contact_isautocreate["Yes"] = 1] = "Yes";
-            contact_isautocreate[contact_isautocreate["No"] = 0] = "No";
-        })(contact_isautocreate = OptionSets.contact_isautocreate || (OptionSets.contact_isautocreate = {}));
-        var contact_isbackofficecustomer;
-        (function (contact_isbackofficecustomer) {
-            contact_isbackofficecustomer[contact_isbackofficecustomer["Yes"] = 1] = "Yes";
-            contact_isbackofficecustomer[contact_isbackofficecustomer["No"] = 0] = "No";
-        })(contact_isbackofficecustomer = OptionSets.contact_isbackofficecustomer || (OptionSets.contact_isbackofficecustomer = {}));
-        var contact_isprivate;
-        (function (contact_isprivate) {
-            contact_isprivate[contact_isprivate["Yes"] = 1] = "Yes";
-            contact_isprivate[contact_isprivate["No"] = 0] = "No";
-        })(contact_isprivate = OptionSets.contact_isprivate || (OptionSets.contact_isprivate = {}));
-        var contact_leadsourcecode;
-        (function (contact_leadsourcecode) {
-            contact_leadsourcecode[contact_leadsourcecode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_leadsourcecode = OptionSets.contact_leadsourcecode || (OptionSets.contact_leadsourcecode = {}));
-        var contact_marketingonly;
-        (function (contact_marketingonly) {
-            contact_marketingonly[contact_marketingonly["Yes"] = 1] = "Yes";
-            contact_marketingonly[contact_marketingonly["No"] = 0] = "No";
-        })(contact_marketingonly = OptionSets.contact_marketingonly || (OptionSets.contact_marketingonly = {}));
-        var contact_merged;
-        (function (contact_merged) {
-            contact_merged[contact_merged["Yes"] = 1] = "Yes";
-            contact_merged[contact_merged["No"] = 0] = "No";
-        })(contact_merged = OptionSets.contact_merged || (OptionSets.contact_merged = {}));
-        var contact_participatesinworkflow;
-        (function (contact_participatesinworkflow) {
-            contact_participatesinworkflow[contact_participatesinworkflow["Yes"] = 1] = "Yes";
-            contact_participatesinworkflow[contact_participatesinworkflow["No"] = 0] = "No";
-        })(contact_participatesinworkflow = OptionSets.contact_participatesinworkflow || (OptionSets.contact_participatesinworkflow = {}));
-        var contact_paymenttermscode;
-        (function (contact_paymenttermscode) {
-            contact_paymenttermscode[contact_paymenttermscode["Net30"] = 1] = "Net30";
-            contact_paymenttermscode[contact_paymenttermscode["_210Net30"] = 2] = "_210Net30";
-            contact_paymenttermscode[contact_paymenttermscode["Net45"] = 3] = "Net45";
-            contact_paymenttermscode[contact_paymenttermscode["Net60"] = 4] = "Net60";
-        })(contact_paymenttermscode = OptionSets.contact_paymenttermscode || (OptionSets.contact_paymenttermscode = {}));
-        var contact_preferredappointmentdaycode;
-        (function (contact_preferredappointmentdaycode) {
-            contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Sunday"] = 0] = "Sunday";
-            contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Monday"] = 1] = "Monday";
-            contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Tuesday"] = 2] = "Tuesday";
-            contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Wednesday"] = 3] = "Wednesday";
-            contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Thursday"] = 4] = "Thursday";
-            contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Friday"] = 5] = "Friday";
-            contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Saturday"] = 6] = "Saturday";
-        })(contact_preferredappointmentdaycode = OptionSets.contact_preferredappointmentdaycode || (OptionSets.contact_preferredappointmentdaycode = {}));
-        var contact_preferredappointmenttimecode;
-        (function (contact_preferredappointmenttimecode) {
-            contact_preferredappointmenttimecode[contact_preferredappointmenttimecode["Morning"] = 1] = "Morning";
-            contact_preferredappointmenttimecode[contact_preferredappointmenttimecode["Afternoon"] = 2] = "Afternoon";
-            contact_preferredappointmenttimecode[contact_preferredappointmenttimecode["Evening"] = 3] = "Evening";
-        })(contact_preferredappointmenttimecode = OptionSets.contact_preferredappointmenttimecode || (OptionSets.contact_preferredappointmenttimecode = {}));
-        var contact_preferredcontactmethodcode;
-        (function (contact_preferredcontactmethodcode) {
-            contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Any"] = 1] = "Any";
-            contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Email"] = 2] = "Email";
-            contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Phone"] = 3] = "Phone";
-            contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Fax"] = 4] = "Fax";
-            contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Mail"] = 5] = "Mail";
-        })(contact_preferredcontactmethodcode = OptionSets.contact_preferredcontactmethodcode || (OptionSets.contact_preferredcontactmethodcode = {}));
-        var contact_shippingmethodcode;
-        (function (contact_shippingmethodcode) {
-            contact_shippingmethodcode[contact_shippingmethodcode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_shippingmethodcode = OptionSets.contact_shippingmethodcode || (OptionSets.contact_shippingmethodcode = {}));
-        var contact_statecode;
-        (function (contact_statecode) {
-            contact_statecode[contact_statecode["Active"] = 0] = "Active";
-            contact_statecode[contact_statecode["Inactive"] = 1] = "Inactive";
-        })(contact_statecode = OptionSets.contact_statecode || (OptionSets.contact_statecode = {}));
-        var contact_statuscode;
-        (function (contact_statuscode) {
-            contact_statuscode[contact_statuscode["Active"] = 1] = "Active";
-            contact_statuscode[contact_statuscode["InForce"] = 100000002] = "InForce";
-            contact_statuscode[contact_statuscode["Inactive"] = 2] = "Inactive";
-            contact_statuscode[contact_statuscode["Matured"] = 100000000] = "Matured";
-            contact_statuscode[contact_statuscode["Cancelled"] = 100000001] = "Cancelled";
-        })(contact_statuscode = OptionSets.contact_statuscode || (OptionSets.contact_statuscode = {}));
-        var contact_territorycode;
-        (function (contact_territorycode) {
-            contact_territorycode[contact_territorycode["DefaultValue"] = 1] = "DefaultValue";
-        })(contact_territorycode = OptionSets.contact_territorycode || (OptionSets.contact_territorycode = {}));
-    })(OptionSets = OneXrm.OptionSets || (OneXrm.OptionSets = {}));
+		var Entities;
+		(function (Entities) {
+				var contact = /** @class */ (function (_super) {
+						__extends(contact, _super);
+						/** Initializes a new instance of the OneXrm.Entities.contact class. */
+						function contact() {
+								var _this = _super.call(this, contact.metadata.logicalName) || this;
+								_this.entityType = contact;
+								return _this;
+						}
+						Object.defineProperty(contact.prototype, "contactid", {
+								get: function () {
+										return this.id;
+								},
+								set: function (value) {
+										this.id = value;
+								},
+								enumerable: true,
+								configurable: true
+						});
+						/** Retrieves the contact with the supplied id. */
+						/** @param id The id of the contact to retrieve. */
+						/** @param columns The columns to retrieve. Supply null to retrieve all columns. */
+						/** @param successCallback The function to be called on a successful response. */
+						/** @param errorCallback The function to be called on an unsuccessful response. */
+						contact.retrieve = function (id, columns, successCallback, errorCallback) {
+								if (columns === void 0) { columns = null; }
+								return OneXrm.Messages.retrieve(this, id, columns, successCallback, errorCallback);
+						};
+						/** Retrieves the contact according to the supplied Web API query. */
+						/** @param webAPIQuery The Web API query. */
+						/** @param successCallback The function to be called on a successful response. */
+						/** @param errorCallback The function to be called on an unsuccessful response. */
+						contact.retrieveWebAPI = function (webAPIQuery, successCallback, errorCallback) {
+								return OneXrm.Messages.retrieveWebAPI(this, webAPIQuery, successCallback, errorCallback);
+						};
+						/** Retrieves the list of contact records according to the supplied query. */
+						/** @param criteria The criteria. */
+						/** @param orders The order expressions. */
+						/** @param columns The columns to retrieve. Supply null to retrieve all columns. */
+						/** @param top The number of records to retrieve. Supply null to retrieve all records. */
+						/** @param linkedEntities The linked entities. */
+						/** @param successCallback The function to be called on a successful response. */
+						/** @param errorCallback The function to be called on an unsuccessful response. */
+						contact.retrieveMultiple = function (criteria, orders, columns, top, linkedEntities, successCallback, errorCallback) {
+								if (criteria === void 0) { criteria = new OneXrm.Query.FilterExpression(); }
+								if (orders === void 0) { orders = []; }
+								if (columns === void 0) { columns = null; }
+								if (top === void 0) { top = null; }
+								if (linkedEntities === void 0) { linkedEntities = []; }
+								return OneXrm.Messages.retrieveMultiple(this, criteria, orders, columns, top, linkedEntities, successCallback, errorCallback);
+						};
+						/** Retrieves the list of contact records according to the supplied query expression. */
+						/** @param query The query expression. */
+						/** @param successCallback The function to be called on a successful response. */
+						/** @param errorCallback The function to be called on an unsuccessful response. */
+						contact.retrieveMultipleQuery = function (query, successCallback, errorCallback) {
+								return OneXrm.Messages.retrieveMultipleQuery(this, query, successCallback, errorCallback);
+						};
+						/** Retrieves the list of contact records according to the supplied query expression. */
+						/** @param webAPIQuery The Web API query. */
+						/** @param successCallback The function to be called on a successful response. */
+						/** @param errorCallback The function to be called on an unsuccessful response. */
+						contact.retrieveMultipleWebAPI = function (webAPIQuery, successCallback, errorCallback) {
+								return OneXrm.Messages.retrieveMultipleWebAPI(this, webAPIQuery, successCallback, errorCallback);
+						};
+						Object.defineProperty(contact, "linq", {
+								/** Starts a new LINQ query. */
+								get: function () {
+										return new contact.LINQ();
+								},
+								enumerable: true,
+								configurable: true
+						});
+						contact.metadata = {
+								isCustomEntity: false,
+								logicalCollectionName: "contacts",
+								logicalName: "contact",
+								objectTypeCode: 2,
+								primaryIdAttribute: "contactid",
+								schemaName: "Contact"
+						};
+						return contact;
+				}(OneXrm.Entity));
+				Entities.contact = contact;
+				(function (contact) {
+						var Attributes = /** @class */ (function () {
+								function Attributes() {
+								}
+								Attributes.accountid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "accountid",
+										schemaName: "AccountId",
+										targets: ["account"]
+								};
+								Attributes.accountrolecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "accountrolecode",
+										schemaName: "AccountRoleCode"
+								};
+								Attributes.address1_addressid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
+										logicalName: "address1_addressid",
+										schemaName: "Address1_AddressId"
+								};
+								Attributes.address1_addresstypecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "address1_addresstypecode",
+										schemaName: "Address1_AddressTypeCode"
+								};
+								Attributes.address1_city = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_city",
+										schemaName: "Address1_City"
+								};
+								Attributes.address1_composite = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Memo,
+										logicalName: "address1_composite",
+										schemaName: "Address1_Composite"
+								};
+								Attributes.address1_country = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_country",
+										schemaName: "Address1_Country"
+								};
+								Attributes.address1_county = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_county",
+										schemaName: "Address1_County"
+								};
+								Attributes.address1_fax = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_fax",
+										schemaName: "Address1_Fax"
+								};
+								Attributes.address1_freighttermscode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "address1_freighttermscode",
+										schemaName: "Address1_FreightTermsCode"
+								};
+								Attributes.address1_latitude = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
+										logicalName: "address1_latitude",
+										schemaName: "Address1_Latitude"
+								};
+								Attributes.address1_line1 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_line1",
+										schemaName: "Address1_Line1"
+								};
+								Attributes.address1_line2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_line2",
+										schemaName: "Address1_Line2"
+								};
+								Attributes.address1_line3 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_line3",
+										schemaName: "Address1_Line3"
+								};
+								Attributes.address1_longitude = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
+										logicalName: "address1_longitude",
+										schemaName: "Address1_Longitude"
+								};
+								Attributes.address1_name = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_name",
+										schemaName: "Address1_Name"
+								};
+								Attributes.address1_postalcode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_postalcode",
+										schemaName: "Address1_PostalCode"
+								};
+								Attributes.address1_postofficebox = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_postofficebox",
+										schemaName: "Address1_PostOfficeBox"
+								};
+								Attributes.address1_primarycontactname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_primarycontactname",
+										schemaName: "Address1_PrimaryContactName"
+								};
+								Attributes.address1_shippingmethodcode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "address1_shippingmethodcode",
+										schemaName: "Address1_ShippingMethodCode"
+								};
+								Attributes.address1_stateorprovince = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_stateorprovince",
+										schemaName: "Address1_StateOrProvince"
+								};
+								Attributes.address1_telephone1 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_telephone1",
+										schemaName: "Address1_Telephone1"
+								};
+								Attributes.address1_telephone2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_telephone2",
+										schemaName: "Address1_Telephone2"
+								};
+								Attributes.address1_telephone3 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_telephone3",
+										schemaName: "Address1_Telephone3"
+								};
+								Attributes.address1_upszone = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address1_upszone",
+										schemaName: "Address1_UPSZone"
+								};
+								Attributes.address1_utcoffset = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "address1_utcoffset",
+										schemaName: "Address1_UTCOffset"
+								};
+								Attributes.address2_addressid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
+										logicalName: "address2_addressid",
+										schemaName: "Address2_AddressId"
+								};
+								Attributes.address2_addresstypecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "address2_addresstypecode",
+										schemaName: "Address2_AddressTypeCode"
+								};
+								Attributes.address2_city = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_city",
+										schemaName: "Address2_City"
+								};
+								Attributes.address2_composite = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Memo,
+										logicalName: "address2_composite",
+										schemaName: "Address2_Composite"
+								};
+								Attributes.address2_country = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_country",
+										schemaName: "Address2_Country"
+								};
+								Attributes.address2_county = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_county",
+										schemaName: "Address2_County"
+								};
+								Attributes.address2_fax = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_fax",
+										schemaName: "Address2_Fax"
+								};
+								Attributes.address2_freighttermscode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "address2_freighttermscode",
+										schemaName: "Address2_FreightTermsCode"
+								};
+								Attributes.address2_latitude = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
+										logicalName: "address2_latitude",
+										schemaName: "Address2_Latitude"
+								};
+								Attributes.address2_line1 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_line1",
+										schemaName: "Address2_Line1"
+								};
+								Attributes.address2_line2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_line2",
+										schemaName: "Address2_Line2"
+								};
+								Attributes.address2_line3 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_line3",
+										schemaName: "Address2_Line3"
+								};
+								Attributes.address2_longitude = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
+										logicalName: "address2_longitude",
+										schemaName: "Address2_Longitude"
+								};
+								Attributes.address2_name = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_name",
+										schemaName: "Address2_Name"
+								};
+								Attributes.address2_postalcode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_postalcode",
+										schemaName: "Address2_PostalCode"
+								};
+								Attributes.address2_postofficebox = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_postofficebox",
+										schemaName: "Address2_PostOfficeBox"
+								};
+								Attributes.address2_primarycontactname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_primarycontactname",
+										schemaName: "Address2_PrimaryContactName"
+								};
+								Attributes.address2_shippingmethodcode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "address2_shippingmethodcode",
+										schemaName: "Address2_ShippingMethodCode"
+								};
+								Attributes.address2_stateorprovince = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_stateorprovince",
+										schemaName: "Address2_StateOrProvince"
+								};
+								Attributes.address2_telephone1 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_telephone1",
+										schemaName: "Address2_Telephone1"
+								};
+								Attributes.address2_telephone2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_telephone2",
+										schemaName: "Address2_Telephone2"
+								};
+								Attributes.address2_telephone3 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_telephone3",
+										schemaName: "Address2_Telephone3"
+								};
+								Attributes.address2_upszone = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address2_upszone",
+										schemaName: "Address2_UPSZone"
+								};
+								Attributes.address2_utcoffset = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "address2_utcoffset",
+										schemaName: "Address2_UTCOffset"
+								};
+								Attributes.address3_addressid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
+										logicalName: "address3_addressid",
+										schemaName: "Address3_AddressId"
+								};
+								Attributes.address3_addresstypecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "address3_addresstypecode",
+										schemaName: "Address3_AddressTypeCode"
+								};
+								Attributes.address3_city = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_city",
+										schemaName: "Address3_City"
+								};
+								Attributes.address3_composite = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Memo,
+										logicalName: "address3_composite",
+										schemaName: "Address3_Composite"
+								};
+								Attributes.address3_country = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_country",
+										schemaName: "Address3_Country"
+								};
+								Attributes.address3_county = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_county",
+										schemaName: "Address3_County"
+								};
+								Attributes.address3_fax = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_fax",
+										schemaName: "Address3_Fax"
+								};
+								Attributes.address3_freighttermscode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "address3_freighttermscode",
+										schemaName: "Address3_FreightTermsCode"
+								};
+								Attributes.address3_latitude = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
+										logicalName: "address3_latitude",
+										schemaName: "Address3_Latitude"
+								};
+								Attributes.address3_line1 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_line1",
+										schemaName: "Address3_Line1"
+								};
+								Attributes.address3_line2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_line2",
+										schemaName: "Address3_Line2"
+								};
+								Attributes.address3_line3 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_line3",
+										schemaName: "Address3_Line3"
+								};
+								Attributes.address3_longitude = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Double,
+										logicalName: "address3_longitude",
+										schemaName: "Address3_Longitude"
+								};
+								Attributes.address3_name = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_name",
+										schemaName: "Address3_Name"
+								};
+								Attributes.address3_postalcode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_postalcode",
+										schemaName: "Address3_PostalCode"
+								};
+								Attributes.address3_postofficebox = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_postofficebox",
+										schemaName: "Address3_PostOfficeBox"
+								};
+								Attributes.address3_primarycontactname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_primarycontactname",
+										schemaName: "Address3_PrimaryContactName"
+								};
+								Attributes.address3_shippingmethodcode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "address3_shippingmethodcode",
+										schemaName: "Address3_ShippingMethodCode"
+								};
+								Attributes.address3_stateorprovince = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_stateorprovince",
+										schemaName: "Address3_StateOrProvince"
+								};
+								Attributes.address3_telephone1 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_telephone1",
+										schemaName: "Address3_Telephone1"
+								};
+								Attributes.address3_telephone2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_telephone2",
+										schemaName: "Address3_Telephone2"
+								};
+								Attributes.address3_telephone3 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_telephone3",
+										schemaName: "Address3_Telephone3"
+								};
+								Attributes.address3_upszone = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "address3_upszone",
+										schemaName: "Address3_UPSZone"
+								};
+								Attributes.address3_utcoffset = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "address3_utcoffset",
+										schemaName: "Address3_UTCOffset"
+								};
+								Attributes.aging30 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
+										logicalName: "aging30",
+										schemaName: "Aging30"
+								};
+								Attributes.aging60 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
+										logicalName: "aging60",
+										schemaName: "Aging60"
+								};
+								Attributes.aging90 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
+										logicalName: "aging90",
+										schemaName: "Aging90"
+								};
+								Attributes.anniversary = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "anniversary",
+										schemaName: "Anniversary"
+								};
+								Attributes.annualincome = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
+										logicalName: "annualincome",
+										schemaName: "AnnualIncome"
+								};
+								Attributes.assistantname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "assistantname",
+										schemaName: "AssistantName"
+								};
+								Attributes.assistantphone = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "assistantphone",
+										schemaName: "AssistantPhone"
+								};
+								Attributes.birthdate = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "birthdate",
+										schemaName: "BirthDate"
+								};
+								Attributes.business2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "business2",
+										schemaName: "Business2"
+								};
+								Attributes.callback = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "callback",
+										schemaName: "Callback"
+								};
+								Attributes.childrensnames = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "childrensnames",
+										schemaName: "ChildrensNames"
+								};
+								Attributes.company = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "company",
+										schemaName: "Company"
+								};
+								Attributes.contactid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
+										logicalName: "contactid",
+										schemaName: "ContactId"
+								};
+								Attributes.createdby = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "createdby",
+										schemaName: "CreatedBy",
+										targets: ["systemuser"]
+								};
+								Attributes.createdbyexternalparty = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "createdbyexternalparty",
+										schemaName: "CreatedByExternalParty",
+										targets: ["externalparty"]
+								};
+								Attributes.createdon = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "createdon",
+										schemaName: "CreatedOn"
+								};
+								Attributes.createdonbehalfby = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "createdonbehalfby",
+										schemaName: "CreatedOnBehalfBy",
+										targets: ["systemuser"]
+								};
+								Attributes.creditlimit = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
+										logicalName: "creditlimit",
+										schemaName: "CreditLimit"
+								};
+								Attributes.creditonhold = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "creditonhold",
+										schemaName: "CreditOnHold"
+								};
+								Attributes.customersizecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "customersizecode",
+										schemaName: "CustomerSizeCode"
+								};
+								Attributes.customertypecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "customertypecode",
+										schemaName: "CustomerTypeCode"
+								};
+								Attributes.defaultpricelevelid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "defaultpricelevelid",
+										schemaName: "DefaultPriceLevelId",
+										targets: ["pricelevel"]
+								};
+								Attributes.department = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "department",
+										schemaName: "Department"
+								};
+								Attributes.description = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Memo,
+										logicalName: "description",
+										schemaName: "Description"
+								};
+								Attributes.di_age = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "di_age",
+										schemaName: "di_age"
+								};
+								Attributes.di_dateofbirth = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "di_dateofbirth",
+										schemaName: "di_dateofBirth"
+								};
+								Attributes.di_esitimatedreturnfinal = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Decimal,
+										logicalName: "di_esitimatedreturnfinal",
+										schemaName: "di_EsitimatedReturnFinal"
+								};
+								Attributes.di_estimated_return = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "di_estimated_return",
+										schemaName: "di_estimated_Return"
+								};
+								Attributes.di_interest_rate = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Decimal,
+										logicalName: "di_interest_rate",
+										schemaName: "di_interest_rate"
+								};
+								Attributes.di_intial_investment = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Money,
+										logicalName: "di_intial_investment",
+										schemaName: "di_Intial_Investment"
+								};
+								Attributes.di_intialinvesmentfinal = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Decimal,
+										logicalName: "di_intialinvesmentfinal",
+										schemaName: "di_IntialInvesmentFinal"
+								};
+								Attributes.di_investmentperiod = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "di_investmentperiod",
+										schemaName: "di_InvestmentPeriod"
+								};
+								Attributes.di_joining_date = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "di_joining_date",
+										schemaName: "di_joining_date"
+								};
+								Attributes.di_maturity_date = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "di_maturity_date",
+										schemaName: "di_maturity_date"
+								};
+								Attributes.donotbulkemail = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "donotbulkemail",
+										schemaName: "DoNotBulkEMail"
+								};
+								Attributes.donotbulkpostalmail = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "donotbulkpostalmail",
+										schemaName: "DoNotBulkPostalMail"
+								};
+								Attributes.donotemail = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "donotemail",
+										schemaName: "DoNotEMail"
+								};
+								Attributes.donotfax = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "donotfax",
+										schemaName: "DoNotFax"
+								};
+								Attributes.donotphone = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "donotphone",
+										schemaName: "DoNotPhone"
+								};
+								Attributes.donotpostalmail = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "donotpostalmail",
+										schemaName: "DoNotPostalMail"
+								};
+								Attributes.donotsendmm = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "donotsendmm",
+										schemaName: "DoNotSendMM"
+								};
+								Attributes.educationcode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "educationcode",
+										schemaName: "EducationCode"
+								};
+								Attributes.emailaddress1 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "emailaddress1",
+										schemaName: "EMailAddress1"
+								};
+								Attributes.emailaddress2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "emailaddress2",
+										schemaName: "EMailAddress2"
+								};
+								Attributes.emailaddress3 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "emailaddress3",
+										schemaName: "EMailAddress3"
+								};
+								Attributes.employeeid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "employeeid",
+										schemaName: "EmployeeId"
+								};
+								Attributes.entityimageid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
+										logicalName: "entityimageid",
+										schemaName: "EntityImageId"
+								};
+								Attributes.exchangerate = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Decimal,
+										logicalName: "exchangerate",
+										schemaName: "ExchangeRate"
+								};
+								Attributes.externaluseridentifier = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "externaluseridentifier",
+										schemaName: "ExternalUserIdentifier"
+								};
+								Attributes.familystatuscode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "familystatuscode",
+										schemaName: "FamilyStatusCode"
+								};
+								Attributes.fax = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "fax",
+										schemaName: "Fax"
+								};
+								Attributes.firstname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "firstname",
+										schemaName: "FirstName"
+								};
+								Attributes.followemail = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "followemail",
+										schemaName: "FollowEmail"
+								};
+								Attributes.ftpsiteurl = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "ftpsiteurl",
+										schemaName: "FtpSiteUrl"
+								};
+								Attributes.fullname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "fullname",
+										schemaName: "FullName"
+								};
+								Attributes.gendercode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "gendercode",
+										schemaName: "GenderCode"
+								};
+								Attributes.governmentid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "governmentid",
+										schemaName: "GovernmentId"
+								};
+								Attributes.haschildrencode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "haschildrencode",
+										schemaName: "HasChildrenCode"
+								};
+								Attributes.home2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "home2",
+										schemaName: "Home2"
+								};
+								Attributes.importsequencenumber = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "importsequencenumber",
+										schemaName: "ImportSequenceNumber"
+								};
+								Attributes.isautocreate = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "isautocreate",
+										schemaName: "IsAutoCreate"
+								};
+								Attributes.isbackofficecustomer = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "isbackofficecustomer",
+										schemaName: "IsBackofficeCustomer"
+								};
+								Attributes.isprivate = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "isprivate",
+										schemaName: "IsPrivate"
+								};
+								Attributes.jobtitle = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "jobtitle",
+										schemaName: "JobTitle"
+								};
+								Attributes.lastname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "lastname",
+										schemaName: "LastName"
+								};
+								Attributes.lastonholdtime = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "lastonholdtime",
+										schemaName: "LastOnHoldTime"
+								};
+								Attributes.lastusedincampaign = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "lastusedincampaign",
+										schemaName: "LastUsedInCampaign"
+								};
+								Attributes.leadsourcecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "leadsourcecode",
+										schemaName: "LeadSourceCode"
+								};
+								Attributes.managername = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "managername",
+										schemaName: "ManagerName"
+								};
+								Attributes.managerphone = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "managerphone",
+										schemaName: "ManagerPhone"
+								};
+								Attributes.marketingonly = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "marketingonly",
+										schemaName: "MarketingOnly"
+								};
+								Attributes.masterid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "masterid",
+										schemaName: "MasterId",
+										targets: ["contact"]
+								};
+								Attributes.merged = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "merged",
+										schemaName: "Merged"
+								};
+								Attributes.middlename = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "middlename",
+										schemaName: "MiddleName"
+								};
+								Attributes.mobilephone = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "mobilephone",
+										schemaName: "MobilePhone"
+								};
+								Attributes.modifiedby = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "modifiedby",
+										schemaName: "ModifiedBy",
+										targets: ["systemuser"]
+								};
+								Attributes.modifiedbyexternalparty = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "modifiedbyexternalparty",
+										schemaName: "ModifiedByExternalParty",
+										targets: ["externalparty"]
+								};
+								Attributes.modifiedon = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "modifiedon",
+										schemaName: "ModifiedOn"
+								};
+								Attributes.modifiedonbehalfby = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "modifiedonbehalfby",
+										schemaName: "ModifiedOnBehalfBy",
+										targets: ["systemuser"]
+								};
+								Attributes.nickname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "nickname",
+										schemaName: "NickName"
+								};
+								Attributes.numberofchildren = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "numberofchildren",
+										schemaName: "NumberOfChildren"
+								};
+								Attributes.onholdtime = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "onholdtime",
+										schemaName: "OnHoldTime"
+								};
+								Attributes.originatingleadid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "originatingleadid",
+										schemaName: "OriginatingLeadId",
+										targets: ["lead"]
+								};
+								Attributes.overriddencreatedon = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.DateTime,
+										logicalName: "overriddencreatedon",
+										schemaName: "OverriddenCreatedOn"
+								};
+								Attributes.ownerid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Owner,
+										logicalName: "ownerid",
+										schemaName: "OwnerId"
+								};
+								Attributes.owningbusinessunit = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "owningbusinessunit",
+										schemaName: "OwningBusinessUnit",
+										targets: ["businessunit"]
+								};
+								Attributes.owningteam = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "owningteam",
+										schemaName: "OwningTeam",
+										targets: ["team"]
+								};
+								Attributes.owninguser = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "owninguser",
+										schemaName: "OwningUser",
+										targets: ["systemuser"]
+								};
+								Attributes.pager = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "pager",
+										schemaName: "Pager"
+								};
+								Attributes.parentcontactid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "parentcontactid",
+										schemaName: "ParentContactId",
+										targets: ["contact"]
+								};
+								Attributes.parentcustomerid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Customer,
+										logicalName: "parentcustomerid",
+										schemaName: "ParentCustomerId"
+								};
+								Attributes.participatesinworkflow = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Boolean,
+										logicalName: "participatesinworkflow",
+										schemaName: "ParticipatesInWorkflow"
+								};
+								Attributes.paymenttermscode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "paymenttermscode",
+										schemaName: "PaymentTermsCode"
+								};
+								Attributes.preferredappointmentdaycode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "preferredappointmentdaycode",
+										schemaName: "PreferredAppointmentDayCode"
+								};
+								Attributes.preferredappointmenttimecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "preferredappointmenttimecode",
+										schemaName: "PreferredAppointmentTimeCode"
+								};
+								Attributes.preferredcontactmethodcode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "preferredcontactmethodcode",
+										schemaName: "PreferredContactMethodCode"
+								};
+								Attributes.preferredequipmentid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "preferredequipmentid",
+										schemaName: "PreferredEquipmentId",
+										targets: ["equipment"]
+								};
+								Attributes.preferredserviceid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "preferredserviceid",
+										schemaName: "PreferredServiceId",
+										targets: ["service"]
+								};
+								Attributes.preferredsystemuserid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "preferredsystemuserid",
+										schemaName: "PreferredSystemUserId",
+										targets: ["systemuser"]
+								};
+								Attributes.processid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
+										logicalName: "processid",
+										schemaName: "ProcessId"
+								};
+								Attributes.salutation = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "salutation",
+										schemaName: "Salutation"
+								};
+								Attributes.shippingmethodcode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "shippingmethodcode",
+										schemaName: "ShippingMethodCode"
+								};
+								Attributes.slaid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "slaid",
+										schemaName: "SLAId",
+										targets: ["sla"]
+								};
+								Attributes.slainvokedid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "slainvokedid",
+										schemaName: "SLAInvokedId",
+										targets: ["sla"]
+								};
+								Attributes.spousesname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "spousesname",
+										schemaName: "SpousesName"
+								};
+								Attributes.stageid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
+										logicalName: "stageid",
+										schemaName: "StageId"
+								};
+								Attributes.statecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.State,
+										logicalName: "statecode",
+										schemaName: "StateCode"
+								};
+								Attributes.statuscode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Status,
+										logicalName: "statuscode",
+										schemaName: "StatusCode"
+								};
+								Attributes.subscriptionid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Uniqueidentifier,
+										logicalName: "subscriptionid",
+										schemaName: "SubscriptionId"
+								};
+								Attributes.suffix = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "suffix",
+										schemaName: "Suffix"
+								};
+								Attributes.telephone1 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "telephone1",
+										schemaName: "Telephone1"
+								};
+								Attributes.telephone2 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "telephone2",
+										schemaName: "Telephone2"
+								};
+								Attributes.telephone3 = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "telephone3",
+										schemaName: "Telephone3"
+								};
+								Attributes.territorycode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Picklist,
+										logicalName: "territorycode",
+										schemaName: "TerritoryCode"
+								};
+								Attributes.timespentbymeonemailandmeetings = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "timespentbymeonemailandmeetings",
+										schemaName: "TimeSpentByMeOnEmailAndMeetings"
+								};
+								Attributes.timezoneruleversionnumber = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "timezoneruleversionnumber",
+										schemaName: "TimeZoneRuleVersionNumber"
+								};
+								Attributes.transactioncurrencyid = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Lookup,
+										logicalName: "transactioncurrencyid",
+										schemaName: "TransactionCurrencyId",
+										targets: ["transactioncurrency"]
+								};
+								Attributes.traversedpath = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "traversedpath",
+										schemaName: "TraversedPath"
+								};
+								Attributes.utcconversiontimezonecode = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.Integer,
+										logicalName: "utcconversiontimezonecode",
+										schemaName: "UTCConversionTimeZoneCode"
+								};
+								Attributes.versionnumber = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.BigInt,
+										logicalName: "versionnumber",
+										schemaName: "VersionNumber"
+								};
+								Attributes.websiteurl = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "websiteurl",
+										schemaName: "WebSiteUrl"
+								};
+								Attributes.yomifirstname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "yomifirstname",
+										schemaName: "YomiFirstName"
+								};
+								Attributes.yomifullname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "yomifullname",
+										schemaName: "YomiFullName"
+								};
+								Attributes.yomilastname = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "yomilastname",
+										schemaName: "YomiLastName"
+								};
+								Attributes.yomimiddlename = {
+										attributeType: OneXrm.Metadata.AttributeTypeCode.String,
+										logicalName: "yomimiddlename",
+										schemaName: "YomiMiddleName"
+								};
+								return Attributes;
+						}());
+						contact.Attributes = Attributes;
+						var LINQ = /** @class */ (function () {
+								/** Initializes a new instance of the Entities.contact.LINQ class. */
+								function LINQ() {
+										this.query = new OneXrm.Query.QueryExpression(contact);
+								}
+								/** Appends a condition expression to the query's criteria conditions. */
+								/** @param attribute The attribute. */
+								/** @param conditionOperator The condition operator. */
+								/** @param values The value(s). */
+								LINQ.prototype.addCondition = function (attribute, conditionOperator, values) {
+										if (values === void 0) { values = []; }
+										this.query.criteria.conditions.push(new OneXrm.Query.ConditionExpression(attribute, conditionOperator, values));
+										return this;
+								};
+								/** Appends an order expression to the query's orders. */
+								/** @param attribute The attribute. */
+								/** @param orderType The order type. Defaults to OneXrm.Query.OrderType.Ascending. */
+								LINQ.prototype.addOrder = function (attribute, orderType) {
+										if (orderType === void 0) { orderType = OneXrm.Query.OrderType.Ascending; }
+										this.query.orders.push(new OneXrm.Query.OrderExpression(attribute, orderType));
+										return this;
+								};
+								/** Applies ordering to the LINQ retrieval. */
+								/** @param linkedEntities The linked entities. */
+								LINQ.prototype.join = function (linkedEntities) {
+										if (linkedEntities === void 0) { linkedEntities = []; }
+										this.query.linkedEntities = linkedEntities;
+										return this;
+								};
+								/** Applies ordering to the LINQ retrieval. */
+								/** @param orders The order expressions. */
+								LINQ.prototype.orderBy = function (orders) {
+										if (orders === void 0) { orders = []; }
+										this.query.orders = orders;
+										return this;
+								};
+								/** Applies a top clause to the LINQ retrieval. */
+								/** @param top The count. */
+								LINQ.prototype.top = function (top) {
+										this.query.top = top;
+										return this;
+								};
+								/** Selects the supplied columns and executes the LINQ query. */
+								/** @param successCallback The function to be called on a successful response. */
+								/** @param errorCallback The function to be called on an unsuccessful response. */
+								LINQ.prototype.select = function (columns, successCallback, errorCallback) {
+										if (columns === void 0) { columns = null; }
+										this.query.columnSet = new OneXrm.Query.ColumnSet(columns);
+										return OneXrm.Messages.retrieveMultipleQuery(contact, this.query, successCallback, errorCallback);
+								};
+								/** Applies criteria to the LINQ retrieval. */
+								/** @param filterOperator The filter operator. */
+								/** @param filters The list of filters. */
+								/** @param conditions The list of conditions. */
+								LINQ.prototype.where = function (filterOperator, filters, conditions) {
+										if (filterOperator === void 0) { filterOperator = OneXrm.Query.LogicalOperator.And; }
+										if (filters === void 0) { filters = []; }
+										if (conditions === void 0) { conditions = []; }
+										this.query.criteria.filterOperator = filterOperator;
+										this.query.criteria.filters = filters;
+										this.query.criteria.conditions = conditions;
+										return this;
+								};
+								return LINQ;
+						}());
+						contact.LINQ = LINQ;
+				})(contact = Entities.contact || (Entities.contact = {}));
+		})(Entities = OneXrm.Entities || (OneXrm.Entities = {}));
+		var OptionSets;
+		(function (OptionSets) {
+				var contact_accountrolecode;
+				(function (contact_accountrolecode) {
+						contact_accountrolecode[contact_accountrolecode["DecisionMaker"] = 1] = "DecisionMaker";
+						contact_accountrolecode[contact_accountrolecode["Employee"] = 2] = "Employee";
+						contact_accountrolecode[contact_accountrolecode["Influencer"] = 3] = "Influencer";
+				})(contact_accountrolecode = OptionSets.contact_accountrolecode || (OptionSets.contact_accountrolecode = {}));
+				var contact_address1_addresstypecode;
+				(function (contact_address1_addresstypecode) {
+						contact_address1_addresstypecode[contact_address1_addresstypecode["BillTo"] = 1] = "BillTo";
+						contact_address1_addresstypecode[contact_address1_addresstypecode["ShipTo"] = 2] = "ShipTo";
+						contact_address1_addresstypecode[contact_address1_addresstypecode["Primary"] = 3] = "Primary";
+						contact_address1_addresstypecode[contact_address1_addresstypecode["Other"] = 4] = "Other";
+				})(contact_address1_addresstypecode = OptionSets.contact_address1_addresstypecode || (OptionSets.contact_address1_addresstypecode = {}));
+				var contact_address1_freighttermscode;
+				(function (contact_address1_freighttermscode) {
+						contact_address1_freighttermscode[contact_address1_freighttermscode["FOB"] = 1] = "FOB";
+						contact_address1_freighttermscode[contact_address1_freighttermscode["NoCharge"] = 2] = "NoCharge";
+				})(contact_address1_freighttermscode = OptionSets.contact_address1_freighttermscode || (OptionSets.contact_address1_freighttermscode = {}));
+				var contact_address1_shippingmethodcode;
+				(function (contact_address1_shippingmethodcode) {
+						contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["Airborne"] = 1] = "Airborne";
+						contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["DHL"] = 2] = "DHL";
+						contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["FedEx"] = 3] = "FedEx";
+						contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["UPS"] = 4] = "UPS";
+						contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["PostalMail"] = 5] = "PostalMail";
+						contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["FullLoad"] = 6] = "FullLoad";
+						contact_address1_shippingmethodcode[contact_address1_shippingmethodcode["WillCall"] = 7] = "WillCall";
+				})(contact_address1_shippingmethodcode = OptionSets.contact_address1_shippingmethodcode || (OptionSets.contact_address1_shippingmethodcode = {}));
+				var contact_address2_addresstypecode;
+				(function (contact_address2_addresstypecode) {
+						contact_address2_addresstypecode[contact_address2_addresstypecode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_address2_addresstypecode = OptionSets.contact_address2_addresstypecode || (OptionSets.contact_address2_addresstypecode = {}));
+				var contact_address2_freighttermscode;
+				(function (contact_address2_freighttermscode) {
+						contact_address2_freighttermscode[contact_address2_freighttermscode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_address2_freighttermscode = OptionSets.contact_address2_freighttermscode || (OptionSets.contact_address2_freighttermscode = {}));
+				var contact_address2_shippingmethodcode;
+				(function (contact_address2_shippingmethodcode) {
+						contact_address2_shippingmethodcode[contact_address2_shippingmethodcode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_address2_shippingmethodcode = OptionSets.contact_address2_shippingmethodcode || (OptionSets.contact_address2_shippingmethodcode = {}));
+				var contact_address3_addresstypecode;
+				(function (contact_address3_addresstypecode) {
+						contact_address3_addresstypecode[contact_address3_addresstypecode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_address3_addresstypecode = OptionSets.contact_address3_addresstypecode || (OptionSets.contact_address3_addresstypecode = {}));
+				var contact_address3_freighttermscode;
+				(function (contact_address3_freighttermscode) {
+						contact_address3_freighttermscode[contact_address3_freighttermscode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_address3_freighttermscode = OptionSets.contact_address3_freighttermscode || (OptionSets.contact_address3_freighttermscode = {}));
+				var contact_address3_shippingmethodcode;
+				(function (contact_address3_shippingmethodcode) {
+						contact_address3_shippingmethodcode[contact_address3_shippingmethodcode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_address3_shippingmethodcode = OptionSets.contact_address3_shippingmethodcode || (OptionSets.contact_address3_shippingmethodcode = {}));
+				var contact_creditonhold;
+				(function (contact_creditonhold) {
+						contact_creditonhold[contact_creditonhold["Yes"] = 1] = "Yes";
+						contact_creditonhold[contact_creditonhold["No"] = 0] = "No";
+				})(contact_creditonhold = OptionSets.contact_creditonhold || (OptionSets.contact_creditonhold = {}));
+				var contact_customersizecode;
+				(function (contact_customersizecode) {
+						contact_customersizecode[contact_customersizecode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_customersizecode = OptionSets.contact_customersizecode || (OptionSets.contact_customersizecode = {}));
+				var contact_customertypecode;
+				(function (contact_customertypecode) {
+						contact_customertypecode[contact_customertypecode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_customertypecode = OptionSets.contact_customertypecode || (OptionSets.contact_customertypecode = {}));
+				var contact_donotbulkemail;
+				(function (contact_donotbulkemail) {
+						contact_donotbulkemail[contact_donotbulkemail["DoNotAllow"] = 1] = "DoNotAllow";
+						contact_donotbulkemail[contact_donotbulkemail["Allow"] = 0] = "Allow";
+				})(contact_donotbulkemail = OptionSets.contact_donotbulkemail || (OptionSets.contact_donotbulkemail = {}));
+				var contact_donotbulkpostalmail;
+				(function (contact_donotbulkpostalmail) {
+						contact_donotbulkpostalmail[contact_donotbulkpostalmail["Yes"] = 1] = "Yes";
+						contact_donotbulkpostalmail[contact_donotbulkpostalmail["No"] = 0] = "No";
+				})(contact_donotbulkpostalmail = OptionSets.contact_donotbulkpostalmail || (OptionSets.contact_donotbulkpostalmail = {}));
+				var contact_donotemail;
+				(function (contact_donotemail) {
+						contact_donotemail[contact_donotemail["DoNotAllow"] = 1] = "DoNotAllow";
+						contact_donotemail[contact_donotemail["Allow"] = 0] = "Allow";
+				})(contact_donotemail = OptionSets.contact_donotemail || (OptionSets.contact_donotemail = {}));
+				var contact_donotfax;
+				(function (contact_donotfax) {
+						contact_donotfax[contact_donotfax["DoNotAllow"] = 1] = "DoNotAllow";
+						contact_donotfax[contact_donotfax["Allow"] = 0] = "Allow";
+				})(contact_donotfax = OptionSets.contact_donotfax || (OptionSets.contact_donotfax = {}));
+				var contact_donotphone;
+				(function (contact_donotphone) {
+						contact_donotphone[contact_donotphone["DoNotAllow"] = 1] = "DoNotAllow";
+						contact_donotphone[contact_donotphone["Allow"] = 0] = "Allow";
+				})(contact_donotphone = OptionSets.contact_donotphone || (OptionSets.contact_donotphone = {}));
+				var contact_donotpostalmail;
+				(function (contact_donotpostalmail) {
+						contact_donotpostalmail[contact_donotpostalmail["DoNotAllow"] = 1] = "DoNotAllow";
+						contact_donotpostalmail[contact_donotpostalmail["Allow"] = 0] = "Allow";
+				})(contact_donotpostalmail = OptionSets.contact_donotpostalmail || (OptionSets.contact_donotpostalmail = {}));
+				var contact_donotsendmm;
+				(function (contact_donotsendmm) {
+						contact_donotsendmm[contact_donotsendmm["DoNotSend"] = 1] = "DoNotSend";
+						contact_donotsendmm[contact_donotsendmm["Send"] = 0] = "Send";
+				})(contact_donotsendmm = OptionSets.contact_donotsendmm || (OptionSets.contact_donotsendmm = {}));
+				var contact_educationcode;
+				(function (contact_educationcode) {
+						contact_educationcode[contact_educationcode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_educationcode = OptionSets.contact_educationcode || (OptionSets.contact_educationcode = {}));
+				var contact_familystatuscode;
+				(function (contact_familystatuscode) {
+						contact_familystatuscode[contact_familystatuscode["Single"] = 1] = "Single";
+						contact_familystatuscode[contact_familystatuscode["Married"] = 2] = "Married";
+						contact_familystatuscode[contact_familystatuscode["Divorced"] = 3] = "Divorced";
+						contact_familystatuscode[contact_familystatuscode["Widowed"] = 4] = "Widowed";
+				})(contact_familystatuscode = OptionSets.contact_familystatuscode || (OptionSets.contact_familystatuscode = {}));
+				var contact_followemail;
+				(function (contact_followemail) {
+						contact_followemail[contact_followemail["Allow"] = 1] = "Allow";
+						contact_followemail[contact_followemail["DoNotAllow"] = 0] = "DoNotAllow";
+				})(contact_followemail = OptionSets.contact_followemail || (OptionSets.contact_followemail = {}));
+				var contact_gendercode;
+				(function (contact_gendercode) {
+						contact_gendercode[contact_gendercode["Male"] = 1] = "Male";
+						contact_gendercode[contact_gendercode["Female"] = 2] = "Female";
+				})(contact_gendercode = OptionSets.contact_gendercode || (OptionSets.contact_gendercode = {}));
+				var contact_haschildrencode;
+				(function (contact_haschildrencode) {
+						contact_haschildrencode[contact_haschildrencode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_haschildrencode = OptionSets.contact_haschildrencode || (OptionSets.contact_haschildrencode = {}));
+				var contact_isautocreate;
+				(function (contact_isautocreate) {
+						contact_isautocreate[contact_isautocreate["Yes"] = 1] = "Yes";
+						contact_isautocreate[contact_isautocreate["No"] = 0] = "No";
+				})(contact_isautocreate = OptionSets.contact_isautocreate || (OptionSets.contact_isautocreate = {}));
+				var contact_isbackofficecustomer;
+				(function (contact_isbackofficecustomer) {
+						contact_isbackofficecustomer[contact_isbackofficecustomer["Yes"] = 1] = "Yes";
+						contact_isbackofficecustomer[contact_isbackofficecustomer["No"] = 0] = "No";
+				})(contact_isbackofficecustomer = OptionSets.contact_isbackofficecustomer || (OptionSets.contact_isbackofficecustomer = {}));
+				var contact_isprivate;
+				(function (contact_isprivate) {
+						contact_isprivate[contact_isprivate["Yes"] = 1] = "Yes";
+						contact_isprivate[contact_isprivate["No"] = 0] = "No";
+				})(contact_isprivate = OptionSets.contact_isprivate || (OptionSets.contact_isprivate = {}));
+				var contact_leadsourcecode;
+				(function (contact_leadsourcecode) {
+						contact_leadsourcecode[contact_leadsourcecode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_leadsourcecode = OptionSets.contact_leadsourcecode || (OptionSets.contact_leadsourcecode = {}));
+				var contact_marketingonly;
+				(function (contact_marketingonly) {
+						contact_marketingonly[contact_marketingonly["Yes"] = 1] = "Yes";
+						contact_marketingonly[contact_marketingonly["No"] = 0] = "No";
+				})(contact_marketingonly = OptionSets.contact_marketingonly || (OptionSets.contact_marketingonly = {}));
+				var contact_merged;
+				(function (contact_merged) {
+						contact_merged[contact_merged["Yes"] = 1] = "Yes";
+						contact_merged[contact_merged["No"] = 0] = "No";
+				})(contact_merged = OptionSets.contact_merged || (OptionSets.contact_merged = {}));
+				var contact_participatesinworkflow;
+				(function (contact_participatesinworkflow) {
+						contact_participatesinworkflow[contact_participatesinworkflow["Yes"] = 1] = "Yes";
+						contact_participatesinworkflow[contact_participatesinworkflow["No"] = 0] = "No";
+				})(contact_participatesinworkflow = OptionSets.contact_participatesinworkflow || (OptionSets.contact_participatesinworkflow = {}));
+				var contact_paymenttermscode;
+				(function (contact_paymenttermscode) {
+						contact_paymenttermscode[contact_paymenttermscode["Net30"] = 1] = "Net30";
+						contact_paymenttermscode[contact_paymenttermscode["_210Net30"] = 2] = "_210Net30";
+						contact_paymenttermscode[contact_paymenttermscode["Net45"] = 3] = "Net45";
+						contact_paymenttermscode[contact_paymenttermscode["Net60"] = 4] = "Net60";
+				})(contact_paymenttermscode = OptionSets.contact_paymenttermscode || (OptionSets.contact_paymenttermscode = {}));
+				var contact_preferredappointmentdaycode;
+				(function (contact_preferredappointmentdaycode) {
+						contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Sunday"] = 0] = "Sunday";
+						contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Monday"] = 1] = "Monday";
+						contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Tuesday"] = 2] = "Tuesday";
+						contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Wednesday"] = 3] = "Wednesday";
+						contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Thursday"] = 4] = "Thursday";
+						contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Friday"] = 5] = "Friday";
+						contact_preferredappointmentdaycode[contact_preferredappointmentdaycode["Saturday"] = 6] = "Saturday";
+				})(contact_preferredappointmentdaycode = OptionSets.contact_preferredappointmentdaycode || (OptionSets.contact_preferredappointmentdaycode = {}));
+				var contact_preferredappointmenttimecode;
+				(function (contact_preferredappointmenttimecode) {
+						contact_preferredappointmenttimecode[contact_preferredappointmenttimecode["Morning"] = 1] = "Morning";
+						contact_preferredappointmenttimecode[contact_preferredappointmenttimecode["Afternoon"] = 2] = "Afternoon";
+						contact_preferredappointmenttimecode[contact_preferredappointmenttimecode["Evening"] = 3] = "Evening";
+				})(contact_preferredappointmenttimecode = OptionSets.contact_preferredappointmenttimecode || (OptionSets.contact_preferredappointmenttimecode = {}));
+				var contact_preferredcontactmethodcode;
+				(function (contact_preferredcontactmethodcode) {
+						contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Any"] = 1] = "Any";
+						contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Email"] = 2] = "Email";
+						contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Phone"] = 3] = "Phone";
+						contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Fax"] = 4] = "Fax";
+						contact_preferredcontactmethodcode[contact_preferredcontactmethodcode["Mail"] = 5] = "Mail";
+				})(contact_preferredcontactmethodcode = OptionSets.contact_preferredcontactmethodcode || (OptionSets.contact_preferredcontactmethodcode = {}));
+				var contact_shippingmethodcode;
+				(function (contact_shippingmethodcode) {
+						contact_shippingmethodcode[contact_shippingmethodcode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_shippingmethodcode = OptionSets.contact_shippingmethodcode || (OptionSets.contact_shippingmethodcode = {}));
+				var contact_statecode;
+				(function (contact_statecode) {
+						contact_statecode[contact_statecode["Active"] = 0] = "Active";
+						contact_statecode[contact_statecode["Inactive"] = 1] = "Inactive";
+				})(contact_statecode = OptionSets.contact_statecode || (OptionSets.contact_statecode = {}));
+				var contact_statuscode;
+				(function (contact_statuscode) {
+						contact_statuscode[contact_statuscode["Active"] = 1] = "Active";
+						contact_statuscode[contact_statuscode["InForce"] = 100000002] = "InForce";
+						contact_statuscode[contact_statuscode["Inactive"] = 2] = "Inactive";
+						contact_statuscode[contact_statuscode["Matured"] = 100000000] = "Matured";
+						contact_statuscode[contact_statuscode["Cancelled"] = 100000001] = "Cancelled";
+				})(contact_statuscode = OptionSets.contact_statuscode || (OptionSets.contact_statuscode = {}));
+				var contact_territorycode;
+				(function (contact_territorycode) {
+						contact_territorycode[contact_territorycode["DefaultValue"] = 1] = "DefaultValue";
+				})(contact_territorycode = OptionSets.contact_territorycode || (OptionSets.contact_territorycode = {}));
+		})(OptionSets = OneXrm.OptionSets || (OneXrm.OptionSets = {}));
 })(OneXrm || (OneXrm = {}));
 
 var DynaInduction;
 (function (DynaInduction) {
-    var Forms;
-    (function (Forms) {
-        var contact;
-        (function (contact) {
-            var Contact = /** @class */ (function () {
-                function Contact() {
-                }
-                Contact.onLoad = function (context) {
-                    //FinalDynamicsChallenge.Forms.contact.Contact.attachEvents(context);
-                    //FinalDynamicsChallenge.Forms.contact.Contact.businessRules(context, true);
-                    DynaInduction.Forms.contact.Contact.prefMethodCom(context);
-                    DynaInduction.Forms.contact.Contact.lockFullName(context);
-                };
-                Contact.onChange = function (context) {
-                    DynaInduction.Forms.contact.Contact.prefMethodCom(context);
-                    if (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.birthdate.logicalName).getValue() != null) {
-                        DynaInduction.Forms.contact.Contact.workAge(context);
-                    }
-                };
-                Contact.onSave = function (context) {
-                    DynaInduction.Forms.contact.Contact.lockFullName(context);
-                };
-                Contact.attachEvents = function (context) { };
-                Contact.businessRules = function (context, onLoad) {
-                    if (onLoad === void 0) { onLoad = false; }
-                };
-                Contact.lockFullName = function (context) {
-                    if (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.fullname.logicalName).getValue() != null) {
-                        Xrm.Page.getControl(OneXrm.Entities.contact.Attributes.fullname.logicalName).setDisabled(true);
-                        //Xrm.Page.ui.getFormType();
-                    }
-                };
-                Contact.workAge = function (context) {
-                    var currentDate = new Date();
-                    var BirthDate = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.birthdate.logicalName).getValue();
-                    var dateDiff = currentDate.getMonth() - BirthDate.getMonth();
-                    if (dateDiff > -1) {
-                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_age.logicalName).setValue(currentDate.getFullYear() - BirthDate.getFullYear());
-                    }
-                    else {
-                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_age.logicalName).setValue(currentDate.getFullYear() - BirthDate.getFullYear() - 1);
-                    }
-                };
-                Contact.prefMethodCom = function (context) {
-                    var prefferedContactMethodCode = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.preferredcontactmethodcode.logicalName).getValue();
-                    Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.emailaddress1.logicalName).setRequiredLevel((prefferedContactMethodCode === OneXrm.OptionSets.contact_preferredcontactmethodcode.Any || prefferedContactMethodCode === 2) ? "required" : "required");
-                    Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.mobilephone.logicalName).setRequiredLevel((prefferedContactMethodCode === 3 ? "required" : "none"));
-                    Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.fax.logicalName).setRequiredLevel((prefferedContactMethodCode === 4 ? "required" : "none"));
-                };
-                Contact.estimatedReturn = function (context) {
-                    var intialInvestment = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_intialinvesmentfinal.logicalName).getValue();
-                    var investmentPeriod = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue();
-                    var interestRate = (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_interest_rate.logicalName).getValue()) / 100;
-                    if ((intialInvestment != null) && (investmentPeriod != null) && (interestRate != null)) {
-                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_esitimatedreturnfinal.logicalName).setValue(intialInvestment * (1 + (interestRate * investmentPeriod)));
-                    }
-                };
-                Contact.calculateMaturityDate = function (context) {
-                    var joiningDate = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_joining_date.logicalName).getValue();
-                    var investmentPeriod = (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue());
-                    if (joiningDate != null && investmentPeriod != 0) {
-                        joiningDate.setMonth(joiningDate.getMonth() + investmentPeriod);
-                        Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_maturity_date.logicalName).setValue(joiningDate);
-                    }
-                };
-                return Contact;
-            }());
-            contact.Contact = Contact;
-        })(contact = Forms.contact || (Forms.contact = {}));
-    })(Forms = DynaInduction.Forms || (DynaInduction.Forms = {}));
+		var Forms;
+		(function (Forms) {
+				var contact;
+				(function (contact) {
+						var Contact = /** @class */ (function () {
+								function Contact() {
+								}
+								Contact.onLoad = function (context) {
+										//FinalDynamicsChallenge.Forms.contact.Contact.attachEvents(context);
+										//FinalDynamicsChallenge.Forms.contact.Contact.businessRules(context, true);
+										DynaInduction.Forms.contact.Contact.prefMethodCom(context);
+										DynaInduction.Forms.contact.Contact.lockFullName(context);
+								};
+								Contact.onChange = function (context) {
+										DynaInduction.Forms.contact.Contact.prefMethodCom(context);
+										if (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.birthdate.logicalName).getValue() != null) {
+												DynaInduction.Forms.contact.Contact.workAge(context);
+										}
+								};
+								Contact.onSave = function (context) {
+										DynaInduction.Forms.contact.Contact.lockFullName(context);
+								};
+								Contact.attachEvents = function (context) { };
+								Contact.businessRules = function (context, onLoad) {
+										if (onLoad === void 0) { onLoad = false; }
+								};
+								Contact.lockFullName = function (context) {
+										if (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.fullname.logicalName).getValue() != null) {
+												Xrm.Page.getControl(OneXrm.Entities.contact.Attributes.fullname.logicalName).setDisabled(true);
+												//Xrm.Page.ui.getFormType();
+										}
+								};
+								Contact.workAge = function (context) {
+										var currentDate = new Date();
+										var BirthDate = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.birthdate.logicalName).getValue();
+										var dateDiff = currentDate.getMonth() - BirthDate.getMonth();
+										if (dateDiff > -1) {
+												Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_age.logicalName).setValue(currentDate.getFullYear() - BirthDate.getFullYear());
+										}
+										else {
+												Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_age.logicalName).setValue(currentDate.getFullYear() - BirthDate.getFullYear() - 1);
+										}
+								};
+								Contact.prefMethodCom = function (context) {
+										var prefferedContactMethodCode = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.preferredcontactmethodcode.logicalName).getValue();
+										Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.emailaddress1.logicalName).setRequiredLevel((prefferedContactMethodCode === OneXrm.OptionSets.contact_preferredcontactmethodcode.Any || prefferedContactMethodCode === 2) ? "required" : "required");
+										Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.mobilephone.logicalName).setRequiredLevel((prefferedContactMethodCode === 3 ? "required" : "none"));
+										Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.fax.logicalName).setRequiredLevel((prefferedContactMethodCode === 4 ? "required" : "none"));
+								};
+								Contact.estimatedReturn = function (context) {
+										var intialInvestment = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_intialinvesmentfinal.logicalName).getValue();
+										var investmentPeriod = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue();
+										var interestRate = (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_interest_rate.logicalName).getValue()) / 100;
+										if ((intialInvestment != null) && (investmentPeriod != null) && (interestRate != null)) {
+												Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_esitimatedreturnfinal.logicalName).setValue(intialInvestment * (1 + (interestRate * investmentPeriod)));
+										}
+								};
+								Contact.calculateMaturityDate = function (context) {
+										var joiningDate = Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_joining_date.logicalName).getValue();
+										var investmentPeriod = (Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName).getValue());
+										if (joiningDate != null && investmentPeriod != null) {
+												joiningDate.setMonth(joiningDate.getMonth() + investmentPeriod);
+												Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_maturity_date.logicalName).setValue(joiningDate);
+										}
+								};
+								return Contact;
+						}());
+						contact.Contact = Contact;
+				})(contact = Forms.contact || (Forms.contact = {}));
+		})(Forms = DynaInduction.Forms || (DynaInduction.Forms = {}));
 })(DynaInduction || (DynaInduction = {}));
 window["DynaInduction"] = window["DynaInduction"] || DynaInduction;
 window["DynaInduction"].Forms = window["DynaInduction"].Forms || DynaInduction.Forms;

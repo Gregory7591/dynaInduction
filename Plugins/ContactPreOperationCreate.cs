@@ -35,7 +35,7 @@ namespace DynaInduction.Plugins
       }
       IPluginExecutionContext context = localContext.PluginExecutionContext;
 
-      if (context.InputParameters.Contains("Target") && context.InputParameters["Target"] is Entity)
+     if (context.InputParameters.Contains("Target") && context.InputParameters["Target"] is Entity)
       {
         Entity entity = (Entity)context.InputParameters["Target"];
         Contact contact = entity.ToEntity<Contact>();

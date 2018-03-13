@@ -21,6 +21,9 @@ module DynaInduction {
           var investmentPeriod = (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName)).getValue() + 6;
           (<Xrm.Page.NumberAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_investmentperiod.logicalName)).setValue(investmentPeriod);
           DynaInduction.Forms.contact.ribbon.estimatedReturn(context);
+           var date = (<Xrm.Page.DateAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_maturity_date.logicalName)).getValue();
+          date.setMonth(date.getMonth() + 6);
+          (<Xrm.Page.DateAttribute>Xrm.Page.getAttribute(OneXrm.Entities.contact.Attributes.di_maturity_date.logicalName)).setValue(date);
         }
       }
     }
